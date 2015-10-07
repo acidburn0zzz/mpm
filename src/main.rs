@@ -12,8 +12,6 @@ fn print_usage(opts: Options) {
     println!("{}", opts.options());
 }
 
-#[test]
-#[ignore]
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
