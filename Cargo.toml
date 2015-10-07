@@ -1,0 +1,14 @@
+[package]
+name = "mpm"
+version = "0.1.0"
+authors = ["alberto"]
+
+[dependencies]
+toml = "*"
+rustc-serialize = "0.3"
+rpf = "*"
+pgetopts = "*"
+
+[lib]
+name = "util"
+path = "lib/lib.rs"

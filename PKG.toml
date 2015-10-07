@@ -1,0 +1,19 @@
+name= "testpkg"
+vers = "0.0.1"
+rel = "1"
+arch = "any"
+url = "https://github.com"
+license = "BSD"
+deps = ["make", "git", "rust"]
+conflicts = ["mpm-git"]
+files = [
+"src/main.rs"
+]
+
+build = [
+	"make"
+]
+
+install = [
+	"make install"
+]
