@@ -17,6 +17,7 @@ fn main() {
     let mut opts = Options::new();
 
     opts.optflag("p", "print", "Print package file");
+    opts.optflag("b", "build", "");
     opts.optflag("h", "help", "Print help information");
 
     let matches = match opts.parse(&args[1..]) {
@@ -31,8 +32,13 @@ fn main() {
         print_usage(opts);
      } else if matches.opt_present("p") {
         for item in matches.free {
-            let pkg = util::Package::new(&*item);
+            let pkg = util::BuildFile::from_file(&*item);
             pkg.print_json();
+        }
+    } else if matches.opt_present("b") {
+        for item in matches.free {
+            let pkg = util::BuildFile::from_file(&*item);
+            pkg.create_pkg();
         }
     }
 }

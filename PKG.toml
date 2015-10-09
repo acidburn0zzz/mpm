@@ -1,14 +1,12 @@
-name= "testpkg"
+name= "test"
 vers = "0.0.1"
 rel = "1"
 arch = "any"
 url = "https://github.com"
 license = "BSD"
 deps = ["make", "git", "rust"]
-conflicts = ["mpm-git"]
-files = [
-"src/main.rs"
-]
+dest = "/usr"
+conflicts = ["test-pkg-git"]
 
 build = [
 	"make"
