@@ -8,6 +8,7 @@ toml = "*"
 rustc-serialize = "0.3"
 rpf = "*"
 pgetopts = "*"
+tar = "*"
 
 [lib]
 name = "util"
