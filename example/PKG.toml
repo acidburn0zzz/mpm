@@ -1,0 +1,20 @@
+maintainers = [ "Alberto Corona<ac@albertocorona.com>" ]
+desc = "Package file for testing mpm"
+name = "hello-mpm"
+vers = "0.0.1"
+rel = "1"
+arch = "any"
+url = "https://github.com"
+license = "BSD"
+makedeps = ["make", "git"]
+deps = [ ]
+provides = "test"
+prefix = "/usr"
+conflicts = ["test-git"]
+source = "example"
+build = [
+	'make',
+	'make DEST=build install'
+]
+install = [
+]
