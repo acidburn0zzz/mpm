@@ -14,7 +14,7 @@ conflicts = ["test-git"]
 source = "example"
 build = [
 	'make',
-	'make DEST=build install'
 ]
-install = [
+package = [
+	'make DEST=build install'
 ]
