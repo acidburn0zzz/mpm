@@ -38,8 +38,14 @@ fn main() {
     } else if matches.opt_present("b") {
         for item in matches.free {
             let pkg = util::BuildFile::from_file(&*item).unwrap();
-            pkg.build();
-            pkg.create_pkg();
+            match pkg.build() {
+                Ok(s) => { s },
+                Err(e) => { util::MPM.error(e.to_string(), ExitStatus::Error) }
+            }
+            match pkg.create_pkg() {
+                Ok(s) => { s },
+                Err(e) => { util::MPM.error(e.to_string(), ExitStatus::Error) }
+            }
         }
     }
 }
