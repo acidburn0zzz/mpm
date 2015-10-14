@@ -9,7 +9,13 @@ rustc-serialize = "0.3"
 rpf = "*"
 pgetopts = "*"
 tar = "*"
+time = "*"
 
 [lib]
 name = "util"
 path = "lib/lib.rs"
+
+[[bin]]
+name = "mpm"
+path = "src/main.rs"
+test = false
