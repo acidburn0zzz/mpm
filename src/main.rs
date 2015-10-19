@@ -37,7 +37,7 @@ fn main() {
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            let pkg = util::BuildFile::from_file(&*item).unwrap();
+            let mut pkg = util::BuildFile::from_file(&*item).unwrap();
             match pkg.build() {
                 Ok(s) => { s },
                 Err(e) => { util::MPM.error(e.to_string(), ExitStatus::Error) }

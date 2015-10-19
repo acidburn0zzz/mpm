@@ -3,6 +3,7 @@ extern crate rustc_serialize;
 extern crate rpf;
 extern crate tar;
 extern crate time;
+extern crate walkdir;
 
 pub static MPM: Prog = Prog { name: "mpm", vers: "0.1.0", yr: "2015", };
 
@@ -21,6 +22,7 @@ use toml::{Value};
 use rustc_serialize::{Encoder,Encodable};
 use rustc_serialize::json::Json;
 use rustc_serialize::json;
+use walkdir::WalkDir;
 
 // Parses a toml file and converts it to json
 fn parse_pkg_file<T: AsRef<Path>>(file_name: T) -> Json {
@@ -80,6 +82,7 @@ pub struct BuildFile {
     name: Option<String>,
     vers: Option<String>,
     build: Option<Vec<String>>,
+    builddate: Option<String>,
     desc: Option<String>,
     prefix: Option<String>,
     package: Option<Vec<String>>,
@@ -97,7 +100,9 @@ pub struct BuildFile {
 impl BuildFile {
     // Creates a new blank BuldFile
     pub fn new() -> BuildFile {
-        Default::default()
+        let mut bf: BuildFile = Default::default();
+        bf.builddate = Some(time::strftime("%m%d%Y%H%M%S", &time::now()).unwrap());
+        return bf;
     }
 
     // Creates a BuldFile struct from a TOML file
@@ -112,12 +117,16 @@ impl BuildFile {
     pub fn print_json(&self) {
         println!("{}", json::as_pretty_json(&self));
     }
+
+    pub fn set_builddate(&mut self) {
+        self.builddate = Some(time::strftime("%m%d%Y%H%M%S", &time::now()).unwrap());
+    }
 }
 
 // Trait for performing a build
 pub trait Builder {
     // Creates a package from tar file
-    fn create_pkg(&self) -> Result<(), io::Error>;
+    fn create_pkg(&mut self) -> Result<(), io::Error>;
     // Creates a tar file
     fn create_tar_file(&self) -> Result<File, io::Error>;
     // Sets the build environment for the package
@@ -136,21 +145,19 @@ impl Builder for BuildFile {
         };
     }
 
-    fn create_pkg(&self) -> Result<(), io::Error> {
+    fn create_pkg(&mut self) -> Result<(), io::Error> {
         let tar = match self.create_tar_file() {
             Ok(s) => { s },
             Err(e) => { return Err(e) }
         };
         let archive = Archive::new(tar);
-        let dir_iter = match fs::read_dir("build") {
-            Ok(s) => { s },
-            Err(e) => { return Err(e) }
-        };
-        for entry in dir_iter {
+        self.set_builddate();
+        for entry in WalkDir::new("build") {
             let entry = entry.unwrap();
+            println!("Adding: {} to archive", &entry.path().display());
             match archive.append_path(entry.path()) {
                 Ok(s) => { s },
-                Err(e) => { return Err(e) }
+                Err(_) => { }
             }
         }
         match archive.finish() {
