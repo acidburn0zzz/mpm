@@ -126,13 +126,13 @@ impl BuildFile {
 // Trait for performing a build
 pub trait Builder {
     // Creates a package from tar file
-    fn create_pkg(&mut self) -> Result<(), io::Error>;
+    fn create_pkg(&mut self) -> io::Result<()>;
     // Creates a tar file
     fn create_tar_file(&self) -> Result<File, io::Error>;
     // Sets the build environment for the package
-    fn set_env(&self);
+    fn set_env(&self) -> io::Result<()>;
     // Builds pacakge
-    fn build(&self)-> Result<(), io::Error>;
+    fn build(&self) -> io::Result<()>;
 }
 
 impl Builder for BuildFile {
@@ -145,19 +145,22 @@ impl Builder for BuildFile {
         };
     }
 
-    fn create_pkg(&mut self) -> Result<(), io::Error> {
-        let tar = match self.create_tar_file() {
-            Ok(s) => { s },
-            Err(e) => { return Err(e) }
-        };
-        let archive = Archive::new(tar);
+    fn create_pkg(&mut self) -> io::Result<()> {
+        let tar = try!(self.create_tar_file());
+        let mut archive = Archive::new(tar);
         self.set_builddate();
         for entry in WalkDir::new("build") {
             let entry = entry.unwrap();
             println!("Adding: {} to archive", &entry.path().display());
-            match archive.append_path(entry.path()) {
-                Ok(s) => { s },
-                Err(_) => { }
+            let metadata = try!(fs::metadata(entry.path()));
+            if metadata.is_dir() {
+                if entry.path() == Path::new("build") {
+                    unimplemented!();
+                } else {
+                    unimplemented!();
+                }
+            } else if metadata.is_file() {
+                try!(archive.append_path(entry.path()));
             }
         }
         match archive.finish() {
@@ -169,30 +172,23 @@ impl Builder for BuildFile {
         }
     }
 
-    fn set_env(&self) {
+    fn set_env(&self) -> io::Result<()> {
         let build = "BUILD";
         let prefix = "PREFIX";
         env::set_var(build, "build");
         env::set_var(prefix, self.prefix.clone().unwrap());
-        match fs::create_dir("build") {
-            Ok(_) => { },
-            Err(e) => {
-                MPM.error(e.to_string(), ExitStatus::Error);
-                panic!();
-            }
-        };
+        fs::create_dir("build")
+            .map_err(|e| MPM.error(e.to_string(), ExitStatus::Error))
+            .or_else(|s| Ok(s))
     }
 
-    fn build(&self) -> Result<(), io::Error> {
-        &self.set_env();
+    fn build(&self) -> io::Result<()> {
+        &self.set_env().unwrap();
         for line in self.build.clone().unwrap() {
             let parsed_line: Vec<&str> = line.split(' ').collect();
             match parsed_line.split_frst() {
                 Some(s) => {
-                    let command = match Command::new(s.0).args(s.1).output() {
-                        Ok(s) => { s },
-                        Err(e) => { return Err(e) }
-                    };
+                    let command = try!(Command::new(s.0).args(s.1).output());
                     println!("{}", String::from_utf8_lossy(&command.stdout));
                 },
                 None => { () },
