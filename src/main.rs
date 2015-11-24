@@ -2,13 +2,14 @@ extern crate util;
 extern crate rpf;
 extern crate pgetopts;
 
-use util::*;
-use rpf::*;
-use pgetopts::{Options};
 use std::env;
+use rpf::*;
+use pgetopts::Options;
+use util::MPM;
+use util::build::*;
 
 fn print_usage(opts: Options) {
-    print!("{0}: {1} ", "Usage".bold(), util::MPM.name.bold());
+    print!("{0}: {1} ", "Usage".bold(), MPM.name.bold());
     println!("{}", opts.options());
 }
 
@@ -23,7 +24,7 @@ fn main() {
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m },
         Err(e) => {
-            util::MPM.error(e.to_string(), ExitStatus::OptError);
+            MPM.error(e.to_string(), ExitStatus::OptError);
             panic!();
         }
     };
@@ -32,19 +33,19 @@ fn main() {
         print_usage(opts);
      } else if matches.opt_present("p") {
         for item in matches.free {
-            let pkg = util::BuildFile::from_file(&*item).unwrap();
+            let pkg = BuildFile::from_file(&*item).unwrap();
             pkg.print_json();
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            let mut pkg = util::BuildFile::from_file(&*item).unwrap();
+            let mut pkg = BuildFile::from_file(&*item).unwrap();
             match pkg.build() {
                 Ok(s) => { s },
-                Err(e) => { util::MPM.error(e.to_string(), ExitStatus::Error) }
+                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
             }
             match pkg.create_pkg() {
                 Ok(s) => { s },
-                Err(e) => { util::MPM.error(e.to_string(), ExitStatus::Error) }
+                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
             }
         }
     }
