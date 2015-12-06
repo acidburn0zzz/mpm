@@ -6,12 +6,10 @@ extern crate time;
 extern crate walkdir;
 
 use ext::{parse_toml_file,Splits};
-use super::MPM;
 
 use std::fs;
-use std::env;
 use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
@@ -80,9 +78,24 @@ pub trait Builder {
     fn set_env(&self) -> io::Result<()>;
     // Builds pacakge
     fn build(&self) -> io::Result<()>;
+    // Strips 'build' from paths. This **should** be temporary
+    fn strip_parent(&self, path: PathBuf) -> PathBuf;
 }
 
 impl Builder for BuildFile {
+    // Strip 'build' from path's as using this directory is currently hard coded
+    // behaviour
+    fn strip_parent(&self, path: PathBuf) -> PathBuf {
+        let mut new_path = PathBuf::new();
+        for component in path.components() {
+            if component.as_ref() != "build" {
+                new_path.push(component.as_ref());
+            }
+        }
+        new_path
+    }
+
+    // 'touches' a tarball file using the string in 'name' as a file name
     fn create_tar_file(&self) -> Result<File, io::Error> {
         let mut tar_name = self.name.clone().unwrap();
         tar_name.push_str(".pkg.tar");
@@ -92,24 +105,25 @@ impl Builder for BuildFile {
         };
     }
 
+    // Creates a package tarball
     fn create_pkg(&mut self) -> io::Result<()> {
         let tar = try!(self.create_tar_file());
         let archive = Archive::new(tar);
         self.set_builddate();
         for entry in WalkDir::new("build") {
-            let entry = entry.unwrap();
-            println!("Adding: {} to archive", &entry.path().display());
+            let entry = try!(entry);
+            let file_name = self.strip_parent(entry.path().to_path_buf());
             let metadata = try!(fs::metadata(entry.path()));
-            if metadata.is_dir() {
-                if entry.path() == Path::new("build") {
-                    unimplemented!();
-                } else {
-                    unimplemented!();
+            if metadata.is_file() {
+                let mut file = try!(File::open(entry.path()));
+                try!(archive.append_file(file_name, &mut file));
+            } else if metadata.is_dir() {
+                if entry.path() != "build".as_path() {
+                    try!(archive.append_dir(file_name, entry.path()));
                 }
-            } else if metadata.is_file() {
-                try!(archive.append_path(entry.path()));
             }
         }
+        // Wrap this turd up
         match archive.finish() {
             Ok(_) => {
                 println!("{}: package '{}' successfully built", "mpm", &self.name.clone().unwrap());
@@ -119,18 +133,12 @@ impl Builder for BuildFile {
         }
     }
 
+    // This should ideally create a build environment from PKG.toml
     fn set_env(&self) -> io::Result<()> {
-        let build = "BUILD";
-        let prefix = "PREFIX";
-        env::set_var(build, "build");
-        env::set_var(prefix, self.prefix.clone().unwrap());
-        fs::create_dir("build")
-            .map_err(|e| MPM.error(e.to_string(), ExitStatus::Error))
-            .or_else(|s| Ok(s))
+        unimplemented!();
     }
 
     fn build(&self) -> io::Result<()> {
-        &self.set_env().unwrap();
         for line in self.build.clone().unwrap() {
             let parsed_line: Vec<&str> = line.split(' ').collect();
             match parsed_line.split_frst() {
