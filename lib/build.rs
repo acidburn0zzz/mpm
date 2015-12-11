@@ -6,7 +6,9 @@ extern crate time;
 extern crate walkdir;
 
 use ext::{parse_toml_file,Splits};
+use super::MPM;
 
+use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -21,6 +23,17 @@ use rustc_serialize::{Encoder,Encodable};
 use rustc_serialize::json;
 use walkdir::WalkDir;
 
+#[allow(non_camel_case_types)]
+#[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable)]
+pub enum Arch {
+    x86_64,
+    i686,
+    arm,
+    aarch64,
+    powerpc,
+    Any,
+}
+
 // Structure for describing a package to be built
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
 pub struct BuildFile {
@@ -33,7 +46,7 @@ pub struct BuildFile {
     package: Option<Vec<String>>,
     makedeps: Option<Vec<String>>,
     deps: Option<Vec<String>>,
-    arch: Option<String>,
+    arch: Option<Vec<Arch>>,
     url: Option<String>,
     source: Option<String>,
     license: Option<String>,
@@ -46,7 +59,7 @@ impl BuildFile {
     // Creates a new blank BuldFile
     pub fn new() -> BuildFile {
         let mut bf: BuildFile = Default::default();
-        bf.builddate = Some(time::strftime("%m%d%Y%H%M%S", &time::now()).unwrap());
+        bf.set_builddate();
         return bf;
     }
 
@@ -64,12 +77,19 @@ impl BuildFile {
     }
 
     pub fn set_builddate(&mut self) {
-        self.builddate = Some(time::strftime("%m%d%Y%H%M%S", &time::now()).unwrap());
+        self.builddate = match time::strftime("%m%d%Y%H%M%S", &time::now()) {
+            Ok(s) => { Some(s) },
+            Err(e) => {
+                MPM.error(e.to_string(), ExitStatus::Error);
+                None
+            }
+        };
     }
 }
 
 // Trait for performing a build
 pub trait Builder {
+    fn get_host_arch(&mut self);
     // Creates a package from tar file
     fn create_pkg(&mut self) -> io::Result<()>;
     // Creates a tar file
@@ -83,6 +103,17 @@ pub trait Builder {
 }
 
 impl Builder for BuildFile {
+    // I have no real way of testing this right now. I have no virtualization
+    fn get_host_arch(&mut self) {
+        if self.arch.is_none() {
+            match env::consts::ARCH {
+                "x86_64" => { self.arch = Some(vec![Arch::x86_64]) },
+                "i686" => { self.arch = Some(vec![Arch::i686]) },
+                "arm" => { self.arch = Some(vec![Arch::arm]) },
+                _ => { },
+            }
+        }
+    }
     // Strip 'build' from path's as using this directory is currently hard coded
     // behaviour
     fn strip_parent(&self, path: PathBuf) -> PathBuf {
