@@ -33,7 +33,13 @@ fn main() {
         print_usage(opts);
      } else if matches.opt_present("p") {
         for item in matches.free {
-            let pkg = BuildFile::from_file(&*item).unwrap();
+            let pkg = match BuildFile::from_file(&*item) {
+                Some(s) => s,
+                // This is a weak and undetailed error
+                None => { MPM.error("empty build file", ExitStatus::Error);
+                    BuildFile::new()
+                }
+            };
             pkg.print_json();
         }
     } else if matches.opt_present("b") {
