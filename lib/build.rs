@@ -241,8 +241,8 @@ fn test_new_empty_build_file() {
 #[test]
 fn test_from_file() {
     let build_file = match BuildFile::from_file("example/PKG.toml") {
-        Ok(s) => { s },
-        Err(_) => { panic!() }
+        Some(s) => { s },
+        None => { panic!() }
     };
     assert_eq!(build_file.name.unwrap(), "hello-mpm".to_owned());
 }
