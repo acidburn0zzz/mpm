@@ -13,7 +13,8 @@ use toml::{Value};
 use rustc_serialize::json::Json;
 
 // Parses a toml file and converts it to json
-pub fn parse_toml_file<T: AsRef<Path>>(file_name: T) -> Json {
+pub fn parse_toml_file<T: AsRef<Path>>
+(file_name: T) -> Result<toml::Table, Vec<toml::ParserError>> {
     let mut buff = String::new();
     let mut file = match File::open(file_name) {
         Ok(s) => { s },
@@ -24,11 +25,10 @@ pub fn parse_toml_file<T: AsRef<Path>>(file_name: T) -> Json {
         Err(e) => { MPM.error(e.to_string(), ExitStatus::Error); panic!(); }
     };
     let mut parser = toml::Parser::new(&buff);
-    let toml = match parser.parse() {
-        Some(s) => { s },
-        None => { panic!() }
+    match parser.parse() {
+        Some(s) => { return Ok(s) },
+        None => { return Err(parser.errors) }
     };
-    convert(toml::Value::Table(toml))
 }
 
 // Converts a given toml value to json
