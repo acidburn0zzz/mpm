@@ -3,11 +3,11 @@ name = "mpm"
 version = "0.1.0"
 dependencies = [
  "pgetopts 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rpf 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rpf 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "tar 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
- "toml 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
+ "toml 0.1.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -59,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "rpf"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "ansi_term 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.1.23"
+version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
