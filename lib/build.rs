@@ -6,7 +6,6 @@ extern crate time;
 extern crate walkdir;
 
 use ext::{parse_toml_file,Splits};
-use super::MPM;
 
 use std::env;
 use std::fs;
@@ -36,6 +35,19 @@ pub enum Arch {
     any,
 }
 
+impl Default for Arch {
+    fn default() -> Arch {
+        match env::consts::ARCH {
+            "x86_64" => { Arch::x86_64 },
+            "i686" => { Arch::i686 },
+            "arm" => { Arch::arm },
+            "aarch64" => { Arch::aarch64 },
+            "powerpc" => { Arch::powerpc },
+            _ => { Arch::any },
+        }
+    }
+}
+
 // Structure for describing a package to be built
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
 pub struct BuildFile {
@@ -61,7 +73,10 @@ impl BuildFile {
     // Creates a new blank BuldFile
     pub fn new() -> BuildFile {
         let mut bf: BuildFile = Default::default();
-        bf.set_builddate();
+        bf.builddate = match bf.set_builddate() {
+            Some(s) => Some(s),
+            None => None,
+        };
         return bf;
     }
 
@@ -69,12 +84,7 @@ impl BuildFile {
     pub fn from_file(file: &str) -> Option<BuildFile> {
         let toml = match parse_toml_file(file) {
             Ok(s) => { s },
-            Err(e) => {
-                for error in e {
-                    println!("mpm parser error: {}", error.description());
-                }
-                return None;
-            }
+            Err(_) => { return None }
         };
         match toml::decode(toml::Value::Table(toml)) {
             Some(s) => { return s },
@@ -87,20 +97,16 @@ impl BuildFile {
         println!("{}", json::as_pretty_json(&self));
     }
 
-    pub fn set_builddate(&mut self) {
-        self.builddate = match time::strftime("%m%d%Y%H%M%S", &time::now()) {
-            Ok(s) => { Some(s) },
-            Err(e) => {
-                MPM.error(e.to_string(), ExitStatus::Error);
-                None
-            }
-        };
+    pub fn set_builddate(&self) -> Option<String> {
+        match time::strftime("%m%d%Y%H%M%S", &time::now()) {
+            Ok(s) => Some(s),
+            Err(_) => None,
+        }
     }
 }
 
 // Trait for performing a build
 pub trait Builder {
-    fn get_host_arch(&self) -> Option<Arch>;
     fn assign_host_arch(&mut self);
     // Creates a package from tar file
     fn create_pkg(&mut self) -> io::Result<()>;
@@ -115,26 +121,13 @@ pub trait Builder {
 }
 
 impl Builder for BuildFile {
-    // I have no real way of testing this right now. I have no virtualization
-    fn get_host_arch(&self) -> Option<Arch> {
-        match env::consts::ARCH {
-            "x86_64" => { Some(Arch::x86_64) },
-            "i686" => { Some(Arch::i686) },
-            "arm" => { Some(Arch::arm) },
-            _ => {
-                MPM.error("unable to match host architecture", ExitStatus::Error);
-                None
-            }
-        }
-    }
-
     fn assign_host_arch(&mut self) {
         if self.arch.is_none() {
             match env::consts::ARCH {
                 "x86_64" => { self.arch = Some(vec![Arch::x86_64]) },
                 "i686" => { self.arch = Some(vec![Arch::i686]) },
                 "arm" => { self.arch = Some(vec![Arch::arm]) },
-                _ => { },
+                _ => { self.arch = Some(vec![Default::default()]) },
             }
         }
     }
@@ -215,7 +208,7 @@ pub struct PkgInfo {
     builddate: String,
     url: String,
     size: u64,
-    arch: String,
+    arch: Arch,
     license: String,
     conflicts: Vec<String>,
     provides: String,

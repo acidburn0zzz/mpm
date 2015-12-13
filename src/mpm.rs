@@ -5,8 +5,9 @@ extern crate pgetopts;
 use std::env;
 use rpf::*;
 use pgetopts::Options;
-use util::MPM;
 use util::build::*;
+
+pub static MPM: Prog = Prog { name: "mpm", vers: "0.1.0", yr: "2015", };
 
 fn print_usage(opts: Options) {
     print!("{0}: {1} ", "Usage".bold(), MPM.name.bold());

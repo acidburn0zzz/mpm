@@ -2,27 +2,24 @@ extern crate toml;
 extern crate rustc_serialize;
 extern crate rpf;
 
-use super::MPM;
-
 use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 
-use rpf::*;
 use toml::{Value};
 use rustc_serialize::json::Json;
 
-// Parses a toml file and converts it to json
+// Parses a toml file.
 pub fn parse_toml_file<T: AsRef<Path>>
-(file_name: T) -> Result<toml::Table, Vec<toml::ParserError>> {
+(file: T) -> Result<toml::Table, Vec<toml::ParserError>> {
     let mut buff = String::new();
-    let mut file = match File::open(file_name) {
+    let mut file = match File::open(file) {
         Ok(s) => { s },
-        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error); panic!(); }
+        Err(_) => { panic!(); }
     };
     match file.read_to_string(&mut buff) {
         Ok(s) => { s },
-        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error); panic!(); }
+        Err(_) => { panic!(); }
     };
     let mut parser = toml::Parser::new(&buff);
     match parser.parse() {
