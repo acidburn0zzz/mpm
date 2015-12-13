@@ -15,6 +15,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
+use std::error::*;
+use toml::decode;
 
 use rpf::*;
 use time::*;
@@ -31,7 +33,7 @@ pub enum Arch {
     arm,
     aarch64,
     powerpc,
-    Any,
+    any,
 }
 
 // Structure for describing a package to be built
@@ -64,11 +66,20 @@ impl BuildFile {
     }
 
     // Creates a BuldFile struct from a TOML file
-    pub fn from_file(file: &str) -> Result<BuildFile, json::DecoderError> {
-        match json::decode(&parse_toml_file(file).to_string()) {
-            Ok(k) => { return Ok(k) },
-            Err(e) => { return Err(e) }
-        }
+    pub fn from_file(file: &str) -> Option<BuildFile> {
+        let toml = match parse_toml_file(file) {
+            Ok(s) => { s },
+            Err(e) => {
+                for error in e {
+                    println!("mpm parser error: {}", error.description());
+                }
+                return None;
+            }
+        };
+        match toml::decode(toml::Value::Table(toml)) {
+            Some(s) => { return s },
+            None => { return None },
+        };
     }
 
     // Prints the BuildFile's serialized TOML as pretty JSON
@@ -89,7 +100,8 @@ impl BuildFile {
 
 // Trait for performing a build
 pub trait Builder {
-    fn get_host_arch(&mut self);
+    fn get_host_arch(&self) -> Option<Arch>;
+    fn assign_host_arch(&mut self);
     // Creates a package from tar file
     fn create_pkg(&mut self) -> io::Result<()>;
     // Creates a tar file
@@ -104,7 +116,19 @@ pub trait Builder {
 
 impl Builder for BuildFile {
     // I have no real way of testing this right now. I have no virtualization
-    fn get_host_arch(&mut self) {
+    fn get_host_arch(&self) -> Option<Arch> {
+        match env::consts::ARCH {
+            "x86_64" => { Some(Arch::x86_64) },
+            "i686" => { Some(Arch::i686) },
+            "arm" => { Some(Arch::arm) },
+            _ => {
+                MPM.error("unable to match host architecture", ExitStatus::Error);
+                None
+            }
+        }
+    }
+
+    fn assign_host_arch(&mut self) {
         if self.arch.is_none() {
             match env::consts::ARCH {
                 "x86_64" => { self.arch = Some(vec![Arch::x86_64]) },
