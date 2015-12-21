@@ -25,7 +25,7 @@ use rustc_serialize::json;
 use walkdir::WalkDir;
 
 #[allow(non_camel_case_types)]
-#[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable)]
+#[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone)]
 pub enum Arch {
     x86_64,
     i686,
@@ -118,6 +118,8 @@ pub trait Builder {
     fn build(&self) -> io::Result<()>;
     // Strips 'build' from paths. This **should** be temporary
     fn strip_parent(&self, path: PathBuf) -> PathBuf;
+    // Gets size of directory before packaging
+    fn pkg_size(&self) -> Result<u64, io::Error>;
 }
 
 impl Builder for BuildFile {
@@ -199,6 +201,20 @@ impl Builder for BuildFile {
         }
         return Ok(());
     }
+
+    fn pkg_size(&self) -> Result<u64, io::Error> {
+        let mut size: u64 = 0;
+        for entry in WalkDir::new("build") {
+            let entry = try!(entry);
+                if entry.path() != "build".as_path() {
+                    match fs::metadata(entry.path()) {
+                        Ok(s) => size += s.len(),
+                        Err(e) => { return Err(e) },
+                    };
+                }
+        }
+        return Ok(size);
+    }
 }
 
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
@@ -208,7 +224,7 @@ pub struct PkgInfo {
     builddate: String,
     url: String,
     size: u64,
-    arch: Arch,
+    arch: Vec<Arch>,
     license: String,
     conflicts: Vec<String>,
     provides: String,
@@ -217,9 +233,24 @@ pub struct PkgInfo {
 impl PkgInfo {
     pub fn new(build_file: &BuildFile) -> PkgInfo {
         let mut info: PkgInfo = Default::default();
-        info.name = build_file.name.clone().unwrap();
-        info.builddate = time::strftime("%m%d%Y%H%M%S", &time::now()).unwrap();
+        info.name = build_file.name.clone().unwrap_or("Unknown".to_owned());
+        info.vers = build_file.vers.clone().unwrap_or("Unknown".to_owned());
+        info.builddate = build_file.builddate.clone().unwrap_or("Unkown".to_owned());
+        info.url = build_file.url.clone().unwrap_or("Uknown".to_owned());
+        info.size = build_file.pkg_size().unwrap_or(0);
+        info.arch = build_file.arch.clone().unwrap_or(vec![Default::default()]);;
+        info.license = build_file.license.clone().unwrap_or("Unkown".to_owned());
+        info.conflicts = build_file.conflicts.clone().unwrap_or(vec!["Unkown".to_owned()]);
+        info.provides = build_file.provides.clone().unwrap_or("Uknown".to_owned());
         return info;
+    }
+
+    pub fn print_json(&self) {
+        println!("{}", json::as_pretty_json(&self));
+    }
+
+    pub fn update_size(&mut self, build_file: &BuildFile) {
+        self.size = build_file.pkg_size().unwrap_or(0);
     }
 }
 
@@ -248,7 +279,6 @@ fn test_print_json() {
 
 #[test]
 fn test_new_empty_pkginfo() {
-    let mut build_file = BuildFile::new();
-    build_file.name = Some("test".to_owned());
+    let build_file = BuildFile::from_file("example/PKG.toml").unwrap();
     let info = PkgInfo::new(&build_file);
 }

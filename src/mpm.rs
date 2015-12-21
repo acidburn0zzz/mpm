@@ -42,6 +42,8 @@ fn main() {
                 }
             };
             pkg.print_json();
+            let pkg_info = PkgInfo::new(&pkg);
+            pkg_info.print_json();
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
@@ -54,6 +56,8 @@ fn main() {
                 Ok(s) => { s },
                 Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
             }
+            let mut pkg_info = PkgInfo::new(&pkg);
+            pkg_info.print_json();
         }
     }
 }
