@@ -7,3 +7,4 @@ extern crate walkdir;
 
 pub mod build;
 pub mod ext;
+pub mod error;

@@ -5,16 +5,16 @@ extern crate tar;
 extern crate time;
 extern crate walkdir;
 
-use ext::{parse_toml_file,Splits};
+use ext::{parse_toml_file,Splits,strip_parent};
+use error::BuildError;
 
 use std::env;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
-use std::error::*;
 use toml::decode;
 
 use rpf::*;
@@ -109,18 +109,17 @@ impl BuildFile {
 pub trait Builder {
     fn assign_host_arch(&mut self);
     // Creates a package from tar file
-    fn create_pkg(&mut self) -> io::Result<()>;
+    fn create_pkg(&mut self) -> Result<(), Box<error::Error>>;
     // Creates a tar file
-    fn create_tar_file(&self) -> Result<File, io::Error>;
+    fn create_tar_file(&self) -> Result<File, Box<error::Error>>;
     // Sets the build environment for the package
     fn set_env(&self) -> io::Result<()>;
     // Builds pacakge
     fn build(&self) -> io::Result<()>;
-    // Strips 'build' from paths. This **should** be temporary
-    fn strip_parent(&self, path: PathBuf) -> PathBuf;
     // Gets size of directory before packaging
-    fn pkg_size(&self) -> Result<u64, io::Error>;
+    fn pkg_size(&self) -> Result<u64, BuildError>;
 }
+
 
 impl Builder for BuildFile {
     fn assign_host_arch(&mut self) {
@@ -133,36 +132,22 @@ impl Builder for BuildFile {
             }
         }
     }
-    // Strip 'build' from path's as using this directory is currently hard coded
-    // behaviour
-    fn strip_parent(&self, path: PathBuf) -> PathBuf {
-        let mut new_path = PathBuf::new();
-        for component in path.components() {
-            if component.as_ref() != "build" {
-                new_path.push(component.as_ref());
-            }
-        }
-        new_path
-    }
 
     // 'touches' a tarball file using the string in 'name' as a file name
-    fn create_tar_file(&self) -> Result<File, io::Error> {
+    fn create_tar_file(&self) -> Result<File, Box<error::Error>> {
         let mut tar_name = self.name.clone().unwrap();
         tar_name.push_str(".pkg.tar");
-        match File::create(&tar_name) {
-            Ok(s) => { return Ok(s) },
-            Err(e) => { return Err(e) }
-        };
+        Ok(try!(File::create(&tar_name)))
     }
 
     // Creates a package tarball
-    fn create_pkg(&mut self) -> io::Result<()> {
+    fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
         let tar = try!(self.create_tar_file());
         let archive = Archive::new(tar);
         self.set_builddate();
         for entry in WalkDir::new("build") {
             let entry = try!(entry);
-            let file_name = self.strip_parent(entry.path().to_path_buf());
+            let file_name = strip_parent(entry.path().to_path_buf());
             let metadata = try!(fs::metadata(entry.path()));
             if metadata.is_file() {
                 let mut file = try!(File::open(entry.path()));
@@ -177,10 +162,10 @@ impl Builder for BuildFile {
         match archive.finish() {
             Ok(_) => {
                 println!("{}: package '{}' successfully built", "mpm", &self.name.clone().unwrap());
-                return Ok(());
             },
-            Err(e) => { return Err(e) }
+            Err(e) => { return Err(Box::new(BuildError::Io(e))) }
         }
+        Ok(())
     }
 
     // This should ideally create a build environment from PKG.toml
@@ -202,16 +187,16 @@ impl Builder for BuildFile {
         return Ok(());
     }
 
-    fn pkg_size(&self) -> Result<u64, io::Error> {
+    fn pkg_size(&self) -> Result<u64, BuildError> {
         let mut size: u64 = 0;
         for entry in WalkDir::new("build") {
             let entry = try!(entry);
-                if entry.path() != "build".as_path() {
-                    match fs::metadata(entry.path()) {
-                        Ok(s) => size += s.len(),
-                        Err(e) => { return Err(e) },
-                    };
-                }
+            if entry.path() != "build".as_path() {
+                match fs::metadata(entry.path()) {
+                    Ok(s) => size += s.len(),
+                    Err(e) => { return Err(BuildError::Io(e)) },
+                };
+            }
         }
         return Ok(size);
     }
