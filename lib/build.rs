@@ -115,7 +115,7 @@ pub trait Builder {
     // Sets the build environment for the package
     fn set_env(&self) -> io::Result<()>;
     // Builds pacakge
-    fn build(&self) -> io::Result<()>;
+    fn build(&self) -> Result<(), Box<error::Error>>;
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
 }
@@ -173,7 +173,7 @@ impl Builder for BuildFile {
         unimplemented!();
     }
 
-    fn build(&self) -> io::Result<()> {
+    fn build(&self) -> Result<(), Box<error::Error>> {
         for line in self.build.clone().unwrap() {
             let parsed_line: Vec<&str> = line.split(' ').collect();
             match parsed_line.split_frst() {
@@ -240,6 +240,13 @@ impl PkgInfo {
 }
 
 #[test]
+fn test_default_arch() {
+    let system_arch = env::consts::ARCH;
+    let default_arch: Arch = Default::default();
+    assert_eq!(system_arch, format!("{:?}", default_arch));
+}
+
+#[test]
 fn test_new_empty_build_file() {
     let build_file = BuildFile::new();
     assert_eq!(build_file.name, None);
@@ -248,7 +255,16 @@ fn test_new_empty_build_file() {
 }
 
 #[test]
-fn test_from_file() {
+fn test_from_file_fail() {
+    let build_file = match BuildFile::from_file("none.toml") {
+        Some(s) => s,
+        None => BuildFile::new(),
+    };
+    assert_eq!(build_file.name, None);
+}
+
+#[test]
+fn test_from_file_success() {
     let build_file = match BuildFile::from_file("example/PKG.toml") {
         Some(s) => { s },
         None => { panic!() }
@@ -266,4 +282,5 @@ fn test_print_json() {
 fn test_new_empty_pkginfo() {
     let build_file = BuildFile::from_file("example/PKG.toml").unwrap();
     let info = PkgInfo::new(&build_file);
+    assert_eq!(info.name, build_file.name.unwrap_or("Unknown".to_owned()));
 }

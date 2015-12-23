@@ -12,7 +12,8 @@ use error::BuildError;
 
 // Strip 'build' from path's as using this directory is currently hard coded
 // behaviour
-pub  fn strip_parent(path: PathBuf) -> PathBuf {
+// FIXME: name is extremely misleading
+pub fn strip_parent(path: PathBuf) -> PathBuf {
     let mut new_path = PathBuf::new();
     for component in path.components() {
         if component.as_ref() != "build" {
@@ -87,13 +88,24 @@ impl<T> Splits<T> for [T] {
 }
 
 #[test]
+fn test_strip_parent() {
+    let test_path = PathBuf::from("test/build/dir");
+    assert_eq!(strip_parent(test_path), PathBuf::from("test/dir"));
+}
+
+#[test]
+#[should_panic]
 fn test_parse_toml_file() {
-    let json = parse_toml_file("example/PKG.toml");
+    let table_from_file = parse_toml_file("example/PKG.toml").unwrap();
+    let toml_table = toml::Table::new();
+    assert_eq!(table_from_file, toml_table);
 }
 
 #[test]
 fn test_convert() {
     let toml = "foo = 'bar'";
     let val: toml::Value = toml.parse().unwrap();
-    let json = convert(val);
+    let json_from_toml = convert(val);
+    let encoded_json = Json::from_str("{\"foo\": \"bar\"}").unwrap();
+    assert_eq!(json_from_toml, encoded_json);
 }
