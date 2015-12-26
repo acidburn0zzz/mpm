@@ -1,5 +1,6 @@
 extern crate toml;
 extern crate walkdir;
+extern crate rustc_serialize;
 
 use std::io;
 use std::io::prelude::*;
@@ -13,6 +14,8 @@ pub enum BuildError {
     WalkDir(walkdir::Error),
     TomlParse(toml::ParserError),
     TomlDecode(toml::DecodeError),
+    JsonEncode(rustc_serialize::json::EncoderError),
+    NonToml(String),
 }
 
 impl fmt::Display for BuildError {
@@ -22,6 +25,8 @@ impl fmt::Display for BuildError {
             BuildError::WalkDir(ref err) => write!(f, "directory walking error, {}", err),
             BuildError::TomlParse(ref err) => write!(f, "toml parsing error, {}", err),
             BuildError::TomlDecode(ref err) => write!(f, "toml decoding error, {}", err),
+            BuildError::JsonEncode(ref err) => write!(f, "json encoding error {}", err),
+            BuildError::NonToml(ref file) => write!(f, "{} is not a toml file", file),
         }
     }
 }
@@ -31,8 +36,10 @@ impl Error for BuildError {
         match *self {
             BuildError::Io(ref err) => err.description(),
             BuildError::WalkDir(ref err) => err.description(),
-            BuildError::TomlParse(ref  err) => err.description(),
-            BuildError::TomlDecode(ref  err) => err.description(),
+            BuildError::TomlParse(ref err) => err.description(),
+            BuildError::TomlDecode(ref err) => err.description(),
+            BuildError::JsonEncode(ref err) => err.description(),
+            BuildError::NonToml(..) => "toml file error",
         }
     }
 
@@ -42,6 +49,8 @@ impl Error for BuildError {
             BuildError::WalkDir(ref err) => Some(err),
             BuildError::TomlParse(ref err) => Some(err),
             BuildError::TomlDecode(ref err) => Some(err),
+            BuildError::JsonEncode(ref err) => Some(err),
+            BuildError::NonToml(..) => None,
         }
     }
 }
@@ -67,5 +76,11 @@ impl From<toml::ParserError> for BuildError {
 impl From<toml::DecodeError> for BuildError {
     fn from(err: toml::DecodeError) -> BuildError {
         BuildError::TomlDecode(err)
+    }
+}
+
+impl From<rustc_serialize::json::EncoderError> for BuildError {
+    fn from(err: rustc_serialize::json::EncoderError) -> BuildError {
+        BuildError::JsonEncode(err)
     }
 }
