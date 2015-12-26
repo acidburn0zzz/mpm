@@ -15,6 +15,7 @@ use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 use toml::decode;
 
 use rpf::*;
@@ -70,6 +71,25 @@ pub struct BuildFile {
 }
 
 impl BuildFile {
+    pub fn assert_toml(&self, file: &str) -> Result<(), Box<error::Error>> {
+        let metadata = try!(fs::metadata(file));
+        if metadata.is_dir() {
+            return Err(Box::new(BuildError::NonToml(file.to_string())));
+        } else if metadata.is_file() {
+            match Path::new(file).extension() {
+                Some(ext) => {
+                    if ext != "toml" && ext != "tml" {
+                        return Err(Box::new(BuildError::NonToml(file.to_string())));
+                    }
+                },
+                None => {
+                    return Err(Box::new(BuildError::NonToml(file.to_string())));
+                }
+            }
+        }
+        Ok(())
+    }
+
     // Creates a new blank BuldFile
     pub fn new() -> BuildFile {
         let mut bf: BuildFile = Default::default();
@@ -135,7 +155,8 @@ impl Builder for BuildFile {
 
     // 'touches' a tarball file using the string in 'name' as a file name
     fn create_tar_file(&self) -> Result<File, Box<error::Error>> {
-        let mut tar_name = self.name.clone().unwrap();
+        let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
+        tar_name.push_str(&format!("-{:?}", self.arch.clone().unwrap().first().unwrap()));
         tar_name.push_str(".pkg.tar");
         Ok(try!(File::create(&tar_name)))
     }
@@ -158,6 +179,8 @@ impl Builder for BuildFile {
                 }
             }
         }
+        let pkg_info = PkgInfo::new(&self);
+        try!(pkg_info.write_info(&archive));
         // Wrap this turd up
         match archive.finish() {
             Ok(_) => {
@@ -236,6 +259,17 @@ impl PkgInfo {
 
     pub fn update_size(&mut self, build_file: &BuildFile) {
         self.size = build_file.pkg_size().unwrap_or(0);
+    }
+
+    pub fn write_info(&self, archive: &Archive<File>) -> Result<(), BuildError> {
+        let mut header = tar::Header::new();
+        let string: String = try!(json::encode(&self));
+        let mut data: &[u8] = string.as_bytes();
+        try!(header.set_path("PKGINFO"));
+        header.set_size(data.len() as u64);
+        header.set_cksum();
+        try!(archive.append(&header, &mut data));
+        Ok(())
     }
 }
 
