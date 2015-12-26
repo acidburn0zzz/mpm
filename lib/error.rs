@@ -26,7 +26,7 @@ impl fmt::Display for BuildError {
             BuildError::TomlParse(ref err) => write!(f, "toml parsing error, {}", err),
             BuildError::TomlDecode(ref err) => write!(f, "toml decoding error, {}", err),
             BuildError::JsonEncode(ref err) => write!(f, "json encoding error {}", err),
-            BuildError::NonToml(ref file) => write!(f, "{} is not a toml file", file),
+            BuildError::NonToml(ref file) => write!(f, "'{}' is not a toml file", file),
         }
     }
 }
