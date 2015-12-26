@@ -46,7 +46,7 @@ clean:
 	$(DEL) $(OBJ)
 	$(DEL) $(CLN)
 	$(DEL) $(TRGT)
-	$(DEL) hello-mpm.pkg.tar
+	$(DEL) hello-mpm-x86_64.pkg.tar
 	$(DEL) -r build
 
 install:
