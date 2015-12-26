@@ -35,25 +35,49 @@ fn main() {
      } else if matches.opt_present("p") {
         for item in matches.free {
             let pkg = match BuildFile::from_file(&*item) {
-                Some(s) => s,
+                Some(s) => {
+                    match s.assert_toml(&*item) {
+                        Ok(_) => { },
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                    }
+                    s
+                }
                 // This is a weak and undetailed error
                 None => { MPM.error("empty build file", ExitStatus::Error);
-                    BuildFile::new()
+                    let s = BuildFile::new();
+                    match s.assert_toml(&*item) {
+                        Ok(_) => { },
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                    }
+                    s
                 }
             };
             pkg.print_json();
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            let mut pkg = BuildFile::from_file(&*item).unwrap();
+            let pkg = match BuildFile::from_file(&*item) {
+                Some(s) => {
+                    match s.assert_toml(&*item) {
+                        Ok(_) => { },
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                    }
+                    s
+                }
+                // This is a weak and undetailed error
+                None => {
+                    let s = BuildFile::new();
+                    match s.assert_toml(&*item) {
+                        Ok(_) => { },
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                    }
+                    s
+                }
+            };
             match pkg.build() {
                 Ok(s) => { s },
                 Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
-            }
-            match pkg.create_pkg() {
-                Ok(s) => { s },
-                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
-            }
+            };
         }
     }
 }
