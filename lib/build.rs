@@ -198,11 +198,21 @@ impl Builder for BuildFile {
 
     fn build(&self) -> Result<(), Box<error::Error>> {
         for line in self.build.clone().unwrap() {
+            // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
             match parsed_line.split_frst() {
                 Some(s) => {
-                    let command = try!(Command::new(s.0).args(s.1).output());
-                    println!("{}", String::from_utf8_lossy(&command.stdout));
+                    let mut command = try!(Command::new(s.0).args(s.1).spawn());
+                    try!(command.wait());
+                    match command.stdout.as_mut() {
+                        // Child process has output
+                        Some(child_output) => {
+                            let mut buff = String::new();
+                            println!("{}", try!(child_output.read_to_string(&mut buff)));
+                        },
+                        // Child process has no output
+                        None => { },
+                    };
                 },
                 None => { () },
             };
