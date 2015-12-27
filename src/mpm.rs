@@ -10,7 +10,8 @@ use util::build::*;
 pub static MPM: Prog = Prog { name: "mpm", vers: "0.1.0", yr: "2015", };
 
 fn print_usage(opts: Options) {
-    print!("{0}: {1} ", "Usage".bold(), MPM.name.bold());
+    print!("{0}: {1} {2} {3}", "Usage".bold(), MPM.name.bold(),
+    "[OPTION]".underline(), "BUILD FILE".underline());
     println!("{}", opts.options());
 }
 
@@ -18,7 +19,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
 
-    opts.optflag("p", "print", "Print package file");
+    opts.optflag("p", "print", "Print package file in JSON");
     opts.optflag("b", "build", "Build package");
     opts.optflag("h", "help", "Print help information");
 
@@ -56,7 +57,7 @@ fn main() {
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            let pkg = match BuildFile::from_file(&*item) {
+            let mut pkg = match BuildFile::from_file(&*item) {
                 Some(s) => {
                     match s.assert_toml(&*item) {
                         Ok(_) => { },
@@ -78,6 +79,10 @@ fn main() {
                 Ok(s) => { s },
                 Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
             };
+            match pkg.create_pkg() {
+                Ok(s) => { s },
+                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
+            }
         }
     }
 }
