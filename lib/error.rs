@@ -1,4 +1,5 @@
 extern crate toml;
+extern crate time;
 extern crate walkdir;
 extern crate rustc_serialize;
 
@@ -11,6 +12,7 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub enum BuildError {
     Io(io::Error),
+    Time(time::ParseError),
     WalkDir(walkdir::Error),
     TomlParse(toml::ParserError),
     TomlDecode(toml::DecodeError),
@@ -22,6 +24,7 @@ impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             BuildError::Io(ref err) => write!(f, "i/o error, {}", err),
+            BuildError::Time(ref err) => write!(f, "time error, {}", err),
             BuildError::WalkDir(ref err) => write!(f, "directory walking error, {}", err),
             BuildError::TomlParse(ref err) => write!(f, "toml parsing error, {}", err),
             BuildError::TomlDecode(ref err) => write!(f, "toml decoding error, {}", err),
@@ -35,6 +38,7 @@ impl Error for BuildError {
     fn description(&self) -> &str {
         match *self {
             BuildError::Io(ref err) => err.description(),
+            BuildError::Time(ref err) => err.description(),
             BuildError::WalkDir(ref err) => err.description(),
             BuildError::TomlParse(ref err) => err.description(),
             BuildError::TomlDecode(ref err) => err.description(),
@@ -46,6 +50,7 @@ impl Error for BuildError {
     fn cause(&self) -> Option<&Error> {
         match *self {
             BuildError::Io(ref err) => Some(err),
+            BuildError::Time(ref err) => Some(err),
             BuildError::WalkDir(ref err) => Some(err),
             BuildError::TomlParse(ref err) => Some(err),
             BuildError::TomlDecode(ref err) => Some(err),
@@ -58,6 +63,12 @@ impl Error for BuildError {
 impl From<io::Error> for BuildError {
     fn from(err: io::Error) -> BuildError {
         BuildError::Io(err)
+    }
+}
+
+impl From<time::ParseError> for BuildError {
+    fn from(err: time::ParseError) -> BuildError {
+        BuildError::Time(err)
     }
 }
 
