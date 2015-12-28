@@ -15,7 +15,6 @@ use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
 use toml::decode;
 
 use rpf::*;
@@ -76,7 +75,7 @@ impl BuildFile {
         if metadata.is_dir() {
             return Err(Box::new(BuildError::NonToml(file.to_string())));
         } else if metadata.is_file() {
-            match Path::new(file).extension() {
+            match file.as_path().extension() {
                 Some(ext) => {
                     if ext != "toml" && ext != "tml" {
                         return Err(Box::new(BuildError::NonToml(file.to_string())));
@@ -92,12 +91,7 @@ impl BuildFile {
 
     // Creates a new blank BuldFile
     pub fn new() -> BuildFile {
-        let mut bf: BuildFile = Default::default();
-        bf.builddate = match bf.set_builddate() {
-            Some(s) => Some(s),
-            None => None,
-        };
-        return bf;
+        Default::default()
     }
 
     // Creates a BuldFile struct from a TOML file
@@ -117,11 +111,12 @@ impl BuildFile {
         println!("{}", json::as_pretty_json(&self));
     }
 
-    pub fn set_builddate(&self) -> Option<String> {
-        match time::strftime("%m%d%Y%H%M%S", &time::now()) {
-            Ok(s) => Some(s),
-            Err(_) => None,
-        }
+    pub fn set_builddate(&mut self) -> Result<(), Box<error::Error>> {
+        match time::strftime("%m%d%Y%H%M%S", &time::now_utc()) {
+            Ok(s) => { self.builddate = Some(s) },
+            Err(e) => return Err(Box::new(e)),
+        };
+        Ok(())
     }
 }
 
@@ -131,7 +126,7 @@ pub trait Builder {
     // Creates a package from tar file
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>>;
     // Creates a tar file
-    fn create_tar_file(&self) -> Result<File, Box<error::Error>>;
+    fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>>;
     // Sets the build environment for the package
     fn set_env(&self) -> io::Result<()>;
     // Builds pacakge
@@ -154,18 +149,21 @@ impl Builder for BuildFile {
     }
 
     // 'touches' a tarball file using the string in 'name' as a file name
-    fn create_tar_file(&self) -> Result<File, Box<error::Error>> {
+    fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>> {
         let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
         tar_name.push_str(&format!("-{:?}", self.arch.clone().unwrap().first().unwrap()));
         tar_name.push_str(".pkg.tar");
-        Ok(try!(File::create(&tar_name)))
+        Ok((try!(File::create(&tar_name)), tar_name))
     }
 
     // Creates a package tarball
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
         let tar = try!(self.create_tar_file());
-        let archive = Archive::new(tar);
-        self.set_builddate();
+        let archive = Archive::new(tar.0);
+        try!(self.set_builddate());
+        let pkg_info = PkgInfo::new(&self);
+        try!(pkg_info.write("build/PKGINFO"));
+        print!("{}", "Compressing package..".bold());
         for entry in WalkDir::new("build") {
             let entry = try!(entry);
             let file_name = strip_parent(entry.path().to_path_buf());
@@ -179,16 +177,17 @@ impl Builder for BuildFile {
                 }
             }
         }
-        let pkg_info = PkgInfo::new(&self);
-        try!(pkg_info.write_info(&archive));
         // Wrap this turd up
         match archive.finish() {
             Ok(_) => {
-                println!("{}: package '{}' successfully built", "mpm", &self.name.clone().unwrap());
+                print!("{}\n", "OK".bold());
             },
             Err(e) => { return Err(Box::new(BuildError::Io(e))) }
         }
-        Ok(())
+        Ok(println!("{} '{}' {}",
+                    "Package".bold(),
+                    &tar.1.paint(Color::Green),
+                    "successfully built".bold()))
     }
 
     // This should ideally create a build environment from PKG.toml
@@ -197,6 +196,7 @@ impl Builder for BuildFile {
     }
 
     fn build(&self) -> Result<(), Box<error::Error>> {
+        println!("{}", "Beginning package build".bold());
         for line in self.build.clone().unwrap() {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
@@ -217,7 +217,7 @@ impl Builder for BuildFile {
                 None => { () },
             };
         }
-        return Ok(());
+        Ok(println!("{}", "Build succeeded".bold()))
     }
 
     fn pkg_size(&self) -> Result<u64, BuildError> {
@@ -271,15 +271,11 @@ impl PkgInfo {
         self.size = build_file.pkg_size().unwrap_or(0);
     }
 
-    pub fn write_info(&self, archive: &Archive<File>) -> Result<(), BuildError> {
-        let mut header = tar::Header::new();
-        let string: String = try!(json::encode(&self));
-        let mut data: &[u8] = string.as_bytes();
-        try!(header.set_path("PKGINFO"));
-        header.set_size(data.len() as u64);
-        header.set_cksum();
-        try!(archive.append(&header, &mut data));
-        Ok(())
+    pub fn write(&self, path: &str) -> Result<(), BuildError> {
+        print!("{}", "Generating PKGINFO...".bold());
+        try!(try!(File::create(path))
+             .write_all(try!(json::encode(&self)).as_bytes()));
+        Ok(print!("{}\n", "OK".paint(Color::Green)))
     }
 }
 
