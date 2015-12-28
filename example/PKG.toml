@@ -1,3 +1,4 @@
+[package]
 maintainers = [ "Alberto Corona<ac@albertocorona.com>" ]
 desc = "Package file for testing mpm"
 name = "hello-mpm"
@@ -15,4 +16,9 @@ source = "example"
 build = [
 	'make',
 	'make DEST=build install'
+]
+
+[clean]
+script = [
+	'make clean',
 ]

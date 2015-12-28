@@ -5,10 +5,32 @@ extern crate rpf;
 use std::path::{Path,PathBuf};
 use std::fs::File;
 use std::io::prelude::*;
+use rpf::*;
 
 use toml::{Value};
 use rustc_serialize::json::Json;
+use std::error;
+use std::fs;
 use error::BuildError;
+
+pub fn assert_toml(file: &str) -> Result<(), Box<error::Error>> {
+    let metadata = try!(fs::metadata(file));
+    if metadata.is_dir() {
+        return Err(Box::new(BuildError::NonToml(file.to_string())));
+    } else if metadata.is_file() {
+        match file.as_path().extension() {
+            Some(ext) => {
+                if ext != "toml" && ext != "tml" {
+                    return Err(Box::new(BuildError::NonToml(file.to_string())));
+                }
+            },
+            None => {
+                return Err(Box::new(BuildError::NonToml(file.to_string())));
+            }
+        }
+    }
+    Ok(())
+}
 
 // Strip 'build' from path's as using this directory is currently hard coded
 // behaviour

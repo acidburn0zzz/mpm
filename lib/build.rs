@@ -15,12 +15,13 @@ use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
+use std::collections::BTreeMap;
 use toml::decode;
 
 use rpf::*;
 use time::*;
 use tar::Archive;
-use rustc_serialize::{Encoder,Encodable};
+use rustc_serialize::{Encoder,Encodable,Decoder,Decodable};
 use rustc_serialize::json;
 use walkdir::WalkDir;
 
@@ -48,6 +49,54 @@ impl Default for Arch {
     }
 }
 
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+pub struct CleanDesc {
+    script: Option<Vec<String>>,
+}
+
+impl CleanDesc {
+    pub fn exec(&self) -> Result<(), Box<error::Error>> {
+        println!("{}", "Cleaning build environment".bold());
+        for line in self.script.clone().unwrap() {
+            // Parse a line of commands from toml
+            let parsed_line: Vec<&str> = line.split(' ').collect();
+            match parsed_line.split_frst() {
+                Some(s) => {
+                    let mut command = try!(Command::new(s.0).args(s.1).spawn());
+                    try!(command.wait());
+                    match command.stdout.as_mut() {
+                        // Child process has output
+                        Some(child_output) => {
+                            let mut buff = String::new();
+                            println!("{}", try!(child_output.read_to_string(&mut buff)));
+                        },
+                        // Child process has no output
+                        None => { },
+                    };
+                },
+                None => { () },
+            };
+        }
+        Ok(println!("{}", "Clean succeeded".bold()))
+    }
+
+    pub fn from_file(file: &str) -> Result<BTreeMap<String, CleanDesc>, Vec<BuildError>> {
+         match parse_toml_file(file) {
+            Ok(toml) => {
+                let mut map = BTreeMap::new();
+                for (key,value) in toml {
+                    match Decodable::decode(&mut toml::Decoder::new(value)) {
+                        Ok(s) => map.insert(key, s),
+                        Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                    };
+                };
+                return Ok(map);
+            },
+            Err(e) => { return Err(e) }
+        }
+    }
+}
+
 // Structure for describing a package to be built
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
 pub struct BuildFile {
@@ -70,23 +119,8 @@ pub struct BuildFile {
 }
 
 impl BuildFile {
-    pub fn assert_toml(&self, file: &str) -> Result<(), Box<error::Error>> {
-        let metadata = try!(fs::metadata(file));
-        if metadata.is_dir() {
-            return Err(Box::new(BuildError::NonToml(file.to_string())));
-        } else if metadata.is_file() {
-            match file.as_path().extension() {
-                Some(ext) => {
-                    if ext != "toml" && ext != "tml" {
-                        return Err(Box::new(BuildError::NonToml(file.to_string())));
-                    }
-                },
-                None => {
-                    return Err(Box::new(BuildError::NonToml(file.to_string())));
-                }
-            }
-        }
-        Ok(())
+    pub fn from_toml_table(table: toml::Value) -> Result<BuildFile, BuildError> {
+        Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
     }
 
     // Creates a new blank BuldFile
@@ -95,15 +129,24 @@ impl BuildFile {
     }
 
     // Creates a BuldFile struct from a TOML file
-    pub fn from_file(file: &str) -> Option<BuildFile> {
-        let toml = match parse_toml_file(file) {
-            Ok(s) => { s },
-            Err(_) => { return None }
-        };
-        match toml::decode(toml::Value::Table(toml)) {
-            Some(s) => { return s },
-            None => { return None },
-        };
+    pub fn from_file(file: &str) -> Result<BTreeMap<String, BuildFile>, Vec<BuildError>> {
+         match parse_toml_file(file) {
+            Ok(toml) => {
+                let mut map = BTreeMap::new();
+                for (key,value) in toml {
+                    match Decodable::decode(&mut toml::Decoder::new(value)) {
+                        Ok(s) => {
+                            if key == "package".to_string() {
+                                map.insert(key, s);
+                            }
+                        },
+                        Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                    };
+                };
+                return Ok(map);
+            },
+            Err(e) => { return Err(e) }
+        }
     }
 
     // Prints the BuildFile's serialized TOML as pretty JSON

@@ -6,6 +6,7 @@ use std::env;
 use rpf::*;
 use pgetopts::Options;
 use util::build::*;
+use util::ext::*;
 
 pub static MPM: Prog = Prog { name: "mpm", vers: "0.1.0", yr: "2015", };
 
@@ -21,6 +22,7 @@ fn main() {
 
     opts.optflag("p", "print", "Print package file in JSON");
     opts.optflag("b", "build", "Build package");
+    opts.optflag("c", "clean", "Clean build environment");
     opts.optflag("h", "help", "Print help information");
 
     let matches = match opts.parse(&args[1..]) {
@@ -35,54 +37,85 @@ fn main() {
         print_usage(opts);
      } else if matches.opt_present("p") {
         for item in matches.free {
-            let pkg = match BuildFile::from_file(&*item) {
-                Some(s) => {
-                    match s.assert_toml(&*item) {
-                        Ok(_) => { },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+            match BuildFile::from_file(&*item) {
+                Ok(s) => {
+                    for (name, build) in s.iter() {
+                        match assert_toml(&*item) {
+                            Ok(_) => {
+                                println!("{}", name.bold());
+                                build.print_json();
+                            },
+                            Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                        }
                     }
-                    s
                 }
-                // This is a weak and undetailed error
-                None => { MPM.error("empty build file", ExitStatus::Error);
-                    let s = BuildFile::new();
-                    match s.assert_toml(&*item) {
-                        Ok(_) => { },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                Err(e) => {
+                    for error in e {
+                        println!("{}", error.to_string().paint(Color::Red));
                     }
-                    s
-                }
+                    MPM.exit(ExitStatus::Error);
+                    panic!();
+                },
             };
-            pkg.print_json();
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            let mut pkg = match BuildFile::from_file(&*item) {
-                Some(s) => {
-                    match s.assert_toml(&*item) {
+            match BuildFile::from_file(&*item) {
+                Ok(mut s) => {
+                    match assert_toml(&*item) {
                         Ok(_) => { },
                         Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
                     }
-                    s
+                    match s.get_mut("package") {
+                        Some(package) => {
+                            match package.build() {
+                                Ok(_) => {
+                                    match package.create_pkg() {
+                                        Ok(_) => { },
+                                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                                    }
+                                },
+                                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                            }
+                        },
+                        None => (),
+                    }
                 }
-                // This is a weak and undetailed error
-                None => {
-                    let s = BuildFile::new();
-                    match s.assert_toml(&*item) {
+                Err(e) => {
+                    for error in e {
+                        println!("{}", error.to_string().paint(Color::Red));
+                    }
+                    MPM.exit(ExitStatus::Error);
+                    panic!();
+                },
+            };
+        }
+    } else if matches.opt_present("c") {
+        for item in matches.free {
+            match CleanDesc::from_file(&*item) {
+                Ok(mut s) => {
+                    match assert_toml(&*item) {
                         Ok(_) => { },
                         Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
                     }
-                    s
+                    match s.get_mut("clean") {
+                        Some(clean) => {
+                            match clean.exec() {
+                                Ok(_) => { }
+                                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                            }
+                        },
+                        None => (),
+                    }
                 }
+                Err(e) => {
+                    for error in e {
+                        println!("{}", error.to_string().paint(Color::Red));
+                    }
+                    MPM.exit(ExitStatus::Error);
+                    panic!();
+                },
             };
-            match pkg.build() {
-                Ok(s) => { s },
-                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
-            };
-            match pkg.create_pkg() {
-                Ok(s) => { s },
-                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) }
-            }
         }
     }
 }
