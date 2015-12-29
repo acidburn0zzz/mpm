@@ -5,7 +5,7 @@ extern crate tar;
 extern crate time;
 extern crate walkdir;
 
-use ext::{parse_toml_file,Splits,strip_parent};
+use ext::{Splits, parse_toml_file, strip_parent};
 use error::BuildError;
 
 use std::env;
@@ -20,7 +20,7 @@ use toml::decode;
 use rpf::*;
 use time::*;
 use tar::Archive;
-use rustc_serialize::{Encoder,Encodable,Decoder,Decodable};
+use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use rustc_serialize::json;
 use walkdir::WalkDir;
 
@@ -38,12 +38,12 @@ pub enum Arch {
 impl Default for Arch {
     fn default() -> Arch {
         match env::consts::ARCH {
-            "x86_64" => { Arch::x86_64 },
-            "i686" => { Arch::i686 },
-            "arm" => { Arch::arm },
-            "aarch64" => { Arch::aarch64 },
-            "powerpc" => { Arch::powerpc },
-            _ => { Arch::any },
+            "x86_64" => Arch::x86_64,
+            "i686" => Arch::i686,
+            "arm" => Arch::arm,
+            "aarch64" => Arch::aarch64,
+            "powerpc" => Arch::powerpc,
+            _ => Arch::any,
         }
     }
 }
@@ -66,8 +66,8 @@ impl PackageBuild {
                         _ => (),
                     }
                 }
-            },
-            Err(e) => { return Err(e) }
+            }
+            Err(e) => return Err(e),
         }
         Ok(pkg_build)
     }
@@ -77,15 +77,15 @@ impl PackageBuild {
             Some(p) => {
                 println!("{}", "[package]".bold());
                 p.print_json();
-            },
-            None => { },
+            }
+            None => {}
         };
         match self.clean {
             Some(c) => {
                 println!("{}", "[clean]".bold());
                 c.print_json();
-            },
-            None => { },
+            }
+            None => {}
         }
     }
 
@@ -122,12 +122,12 @@ impl CleanDesc {
                         Some(child_output) => {
                             let mut buff = String::new();
                             println!("{}", try!(child_output.read_to_string(&mut buff)));
-                        },
+                        }
                         // Child process has no output
-                        None => { },
+                        None => {}
                     };
-                },
-                None => { () },
+                }
+                None => (),
             };
         }
         Ok(println!("{}", "Clean succeeded".bold()))
@@ -145,13 +145,15 @@ impl CleanDesc {
                     Some(package) => {
                         match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
                             Ok(s) => return Ok(s),
-                            Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                            Err(e) => {
+                                return Err(vec![BuildError::TomlDecode(e)]);
+                            }
                         };
                     }
-                    None => { return Err(vec![BuildError::NoCleanDesc]) },
+                    None => return Err(vec![BuildError::NoCleanDesc]),
                 };
-            },
-            Err(e) => { return Err(e) }
+            }
+            Err(e) => return Err(e),
         }
     }
 }
@@ -195,13 +197,15 @@ impl PackageDesc {
                     Some(package) => {
                         match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
                             Ok(s) => return Ok(s),
-                            Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                            Err(e) => {
+                                return Err(vec![BuildError::TomlDecode(e)]);
+                            }
                         };
                     }
-                    None => { return Err(vec![BuildError::NoBuildDesc]) },
+                    None => return Err(vec![BuildError::NoBuildDesc]),
                 };
-            },
-            Err(e) => { return Err(e) }
+            }
+            Err(e) => return Err(e),
         }
     }
 
@@ -212,7 +216,7 @@ impl PackageDesc {
 
     pub fn set_builddate(&mut self) -> Result<(), Box<error::Error>> {
         match time::strftime("%m%d%Y%H%M%S", &time::now_utc()) {
-            Ok(s) => { self.builddate = Some(s) },
+            Ok(s) => self.builddate = Some(s),
             Err(e) => return Err(Box::new(e)),
         };
         Ok(())
@@ -239,10 +243,10 @@ impl Builder for PackageDesc {
     fn assign_host_arch(&mut self) {
         if self.arch.is_none() {
             match env::consts::ARCH {
-                "x86_64" => { self.arch = Some(vec![Arch::x86_64]) },
-                "i686" => { self.arch = Some(vec![Arch::i686]) },
-                "arm" => { self.arch = Some(vec![Arch::arm]) },
-                _ => { self.arch = Some(vec![Default::default()]) },
+                "x86_64" => self.arch = Some(vec![Arch::x86_64]),
+                "i686" => self.arch = Some(vec![Arch::i686]),
+                "arm" => self.arch = Some(vec![Arch::arm]),
+                _ => self.arch = Some(vec![Default::default()]),
             }
         }
     }
@@ -280,8 +284,8 @@ impl Builder for PackageDesc {
         match archive.finish() {
             Ok(_) => {
                 print!("{}\n", "OK".paint(Color::Green));
-            },
-            Err(e) => { return Err(Box::new(BuildError::Io(e))) }
+            }
+            Err(e) => return Err(Box::new(BuildError::Io(e))),
         }
         Ok(println!("{} '{}' {}",
                     "Package".bold(),
@@ -308,12 +312,12 @@ impl Builder for PackageDesc {
                         Some(child_output) => {
                             let mut buff = String::new();
                             println!("{}", try!(child_output.read_to_string(&mut buff)));
-                        },
+                        }
                         // Child process has no output
-                        None => { },
+                        None => {}
                     };
-                },
-                None => { () },
+                }
+                None => (),
             };
         }
         Ok(println!("{}", "Build succeeded".bold()))
@@ -326,7 +330,7 @@ impl Builder for PackageDesc {
             if entry.path() != "build".as_path() {
                 match fs::metadata(entry.path()) {
                     Ok(s) => size += s.len(),
-                    Err(e) => { return Err(BuildError::Io(e)) },
+                    Err(e) => return Err(BuildError::Io(e)),
                 };
             }
         }
@@ -372,8 +376,7 @@ impl PkgInfo {
 
     pub fn write(&self, path: &str) -> Result<(), BuildError> {
         print!("{}", "Generating PKGINFO...".bold());
-        try!(try!(File::create(path))
-             .write_all(try!(json::encode(&self)).as_bytes()));
+        try!(try!(File::create(path)).write_all(try!(json::encode(&self)).as_bytes()));
         Ok(print!("{}\n", "OK".paint(Color::Green)))
     }
 }

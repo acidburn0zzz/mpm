@@ -8,11 +8,18 @@ use pgetopts::Options;
 use util::build::*;
 use util::ext::*;
 
-pub static MPM: Prog = Prog { name: "mpm", vers: "0.1.0", yr: "2015", };
+pub static MPM: Prog = Prog {
+    name: "mpm",
+    vers: "0.1.0",
+    yr: "2015",
+};
 
 fn print_usage(opts: Options) {
-    print!("{0}: {1} {2} {3}", "Usage".bold(), MPM.name.bold(),
-    "[OPTION]".underline(), "BUILD FILE".underline());
+    print!("{0}: {1} {2} {3}",
+           "Usage".bold(),
+           MPM.name.bold(),
+           "[OPTION]".underline(),
+           "BUILD FILE".underline());
     println!("{}", opts.options());
 }
 
@@ -26,7 +33,7 @@ fn main() {
     opts.optflag("h", "help", "Print help information");
 
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m },
+        Ok(m) => m,
         Err(e) => {
             MPM.error(e.to_string(), ExitStatus::OptError);
             panic!();
@@ -35,7 +42,7 @@ fn main() {
 
     if matches.opt_present("h") {
         print_usage(opts);
-     } else if matches.opt_present("p") {
+    } else if matches.opt_present("p") {
         for item in matches.free {
             match PackageBuild::from_file(&*item) {
                 Ok(pkg) => pkg.print_json(),
@@ -45,7 +52,7 @@ fn main() {
                     }
                     MPM.exit(ExitStatus::Error);
                     panic!();
-                },
+                }
             };
         }
     } else if matches.opt_present("b") {
@@ -57,23 +64,23 @@ fn main() {
                             match package.build() {
                                 Ok(_) => {
                                     match package.create_pkg() {
-                                        Ok(_) => { },
-                                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                                        Ok(_) => {}
+                                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                                     }
-                                },
-                                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                                }
+                                Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                             };
-                        },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                        }
+                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                     };
-                },
+                }
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
                     }
                     MPM.exit(ExitStatus::Error);
                     panic!();
-                },
+                }
             };
         }
     } else if matches.opt_present("c") {
@@ -83,20 +90,20 @@ fn main() {
                     match assert_toml(&*item) {
                         Ok(_) => {
                             match clean.exec() {
-                                Ok(_) => { }
-                                Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                                Ok(_) => {}
+                                Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                             }
-                        },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                        }
+                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                     }
-                },
+                }
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
                     }
                     MPM.exit(ExitStatus::Error);
                     panic!();
-                },
+                }
             };
         }
     }

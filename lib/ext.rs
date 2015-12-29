@@ -2,12 +2,12 @@ extern crate toml;
 extern crate rustc_serialize;
 extern crate rpf;
 
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::prelude::*;
 use rpf::*;
 
-use toml::{Value};
+use toml::Value;
 use rustc_serialize::json::Json;
 use std::error;
 use std::fs;
@@ -23,7 +23,7 @@ pub fn assert_toml(file: &str) -> Result<(), Box<error::Error>> {
                 if ext != "toml" && ext != "tml" {
                     return Err(Box::new(BuildError::NonToml(file.to_string())));
                 }
-            },
+            }
             None => {
                 return Err(Box::new(BuildError::NonToml(file.to_string())));
             }
@@ -46,19 +46,18 @@ pub fn strip_parent(path: PathBuf) -> PathBuf {
 }
 
 // Parses a toml file.
-pub fn parse_toml_file<T: AsRef<Path>>
-(file: T) -> Result<toml::Table, Vec<BuildError>> {
+pub fn parse_toml_file<T: AsRef<Path>>(file: T) -> Result<toml::Table, Vec<BuildError>> {
     let mut buff = String::new();
     let mut error_vec = Vec::new();
     let mut file = match File::open(file) {
-        Ok(s) => { s },
+        Ok(s) => s,
         Err(e) => {
             error_vec.push(BuildError::Io(e));
             return Err(error_vec);
         }
     };
     match file.read_to_string(&mut buff) {
-        Ok(s) => { s },
+        Ok(s) => s,
         Err(e) => {
             error_vec.push(BuildError::Io(e));
             return Err(error_vec);
@@ -66,7 +65,7 @@ pub fn parse_toml_file<T: AsRef<Path>>
     };
     let mut parser = toml::Parser::new(&buff);
     match parser.parse() {
-        Some(s) => { return Ok(s) },
+        Some(s) => return Ok(s),
         None => {
             for err in parser.errors {
                 error_vec.push(BuildError::TomlParse(err));
@@ -84,9 +83,11 @@ pub fn convert(toml: toml::Value) -> Json {
         Value::Float(f) => Json::F64(f),
         Value::Boolean(b) => Json::Boolean(b),
         Value::Array(a) => Json::Array(a.into_iter().map(convert).collect()),
-        Value::Table(t) => Json::Object(t.into_iter().map(|(k, v)| {
-            (k, convert(v))
-        }).collect()),
+        Value::Table(t) => {
+            Json::Object(t.into_iter()
+                          .map(|(k, v)| (k, convert(v)))
+                          .collect())
+        }
         Value::Datetime(d) => Json::String(d),
     }
 }
@@ -99,12 +100,18 @@ pub trait Splits<T> {
 
 impl<T> Splits<T> for [T] {
     fn split_frst(&self) -> Option<(&T, &[T])> {
-        if self.is_empty() { None } else { Some((&self[0], &self[1..]))}
+        if self.is_empty() {
+            None
+        } else {
+            Some((&self[0], &self[1..]))
+        }
     }
     fn split_lst(&self) -> Option<(&T, &[T])> {
         let len = self.len();
-        if self.is_empty() { None } else {
-            Some((&self[len - 1], &self[..(len -1)]))
+        if self.is_empty() {
+            None
+        } else {
+            Some((&self[len - 1], &self[..(len - 1)]))
         }
     }
 }
