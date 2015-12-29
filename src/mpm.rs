@@ -37,18 +37,8 @@ fn main() {
         print_usage(opts);
      } else if matches.opt_present("p") {
         for item in matches.free {
-            match BuildFile::from_file(&*item) {
-                Ok(s) => {
-                    for (name, build) in s.iter() {
-                        match assert_toml(&*item) {
-                            Ok(_) => {
-                                println!("{}", name.bold());
-                                build.print_json();
-                            },
-                            Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
-                        }
-                    }
-                }
+            match PackageBuild::from_file(&*item) {
+                Ok(pkg) => pkg.print_json(),
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
@@ -60,14 +50,10 @@ fn main() {
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            match BuildFile::from_file(&*item) {
-                Ok(mut s) => {
+            match PackageDesc::from_file(&*item) {
+                Ok(mut package) => {
                     match assert_toml(&*item) {
-                        Ok(_) => { },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
-                    }
-                    match s.get_mut("package") {
-                        Some(package) => {
+                        Ok(_) => {
                             match package.build() {
                                 Ok(_) => {
                                     match package.create_pkg() {
@@ -76,11 +62,11 @@ fn main() {
                                     }
                                 },
                                 Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
-                            }
+                            };
                         },
-                        None => (),
-                    }
-                }
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
+                    };
+                },
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
@@ -93,21 +79,17 @@ fn main() {
     } else if matches.opt_present("c") {
         for item in matches.free {
             match CleanDesc::from_file(&*item) {
-                Ok(mut s) => {
+                Ok(clean) => {
                     match assert_toml(&*item) {
-                        Ok(_) => { },
-                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
-                    }
-                    match s.get_mut("clean") {
-                        Some(clean) => {
+                        Ok(_) => {
                             match clean.exec() {
                                 Ok(_) => { }
                                 Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
                             }
                         },
-                        None => (),
+                        Err(e) => { MPM.error(e.to_string(), ExitStatus::Error) },
                     }
-                }
+                },
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));

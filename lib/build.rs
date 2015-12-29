@@ -15,7 +15,6 @@ use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::BTreeMap;
 use toml::decode;
 
 use rpf::*;
@@ -49,15 +48,69 @@ impl Default for Arch {
     }
 }
 
+#[derive(Debug,Default,PartialEq)]
+pub struct PackageBuild {
+    package: Option<PackageDesc>,
+    clean: Option<CleanDesc>,
+}
+
+impl PackageBuild {
+    pub fn from_file(file: &str) -> Result<PackageBuild, Vec<BuildError>> {
+        let mut pkg_build: PackageBuild = Default::default();
+        match parse_toml_file(file) {
+            Ok(toml) => {
+                for (key, table) in toml {
+                    match key.as_ref() {
+                        "package" => pkg_build.package = PackageDesc::from_toml_table(table).ok(),
+                        "clean" => pkg_build.clean = CleanDesc::from_toml_table(table).ok(),
+                        _ => (),
+                    }
+                }
+            },
+            Err(e) => { return Err(e) }
+        }
+        Ok(pkg_build)
+    }
+
+    pub fn print_json(self) {
+        match self.package {
+            Some(p) => {
+                println!("{}", "[package]".bold());
+                p.print_json();
+            },
+            None => { },
+        };
+        match self.clean {
+            Some(c) => {
+                println!("{}", "[clean]".bold());
+                c.print_json();
+            },
+            None => { },
+        }
+    }
+
+    pub fn package(self) -> Option<PackageDesc> {
+        self.package
+    }
+
+    pub fn clean(self) -> Option<CleanDesc> {
+        self.clean
+    }
+}
+
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
 pub struct CleanDesc {
     script: Option<Vec<String>>,
 }
 
 impl CleanDesc {
+    pub fn from_toml_table(table: toml::Value) -> Result<CleanDesc, BuildError> {
+        Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
+    }
+
     pub fn exec(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Cleaning build environment".bold());
-        for line in self.script.clone().unwrap() {
+        for line in &self.script.clone().unwrap_or(vec!["".to_string()]) {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
             match parsed_line.split_frst() {
@@ -80,17 +133,23 @@ impl CleanDesc {
         Ok(println!("{}", "Clean succeeded".bold()))
     }
 
-    pub fn from_file(file: &str) -> Result<BTreeMap<String, CleanDesc>, Vec<BuildError>> {
-         match parse_toml_file(file) {
+    // Prints the PackageDesc's serialized TOML as pretty JSON
+    pub fn print_json(&self) {
+        println!("{}", json::as_pretty_json(&self));
+    }
+
+    pub fn from_file(file: &str) -> Result<CleanDesc, Vec<BuildError>> {
+        match parse_toml_file(file) {
             Ok(toml) => {
-                let mut map = BTreeMap::new();
-                for (key,value) in toml {
-                    match Decodable::decode(&mut toml::Decoder::new(value)) {
-                        Ok(s) => map.insert(key, s),
-                        Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
-                    };
+                match toml.get("clean") {
+                    Some(package) => {
+                        match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
+                            Ok(s) => return Ok(s),
+                            Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                        };
+                    }
+                    None => { return Err(vec![BuildError::NoCleanDesc]) },
                 };
-                return Ok(map);
             },
             Err(e) => { return Err(e) }
         }
@@ -99,7 +158,7 @@ impl CleanDesc {
 
 // Structure for describing a package to be built
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
-pub struct BuildFile {
+pub struct PackageDesc {
     name: Option<String>,
     vers: Option<String>,
     build: Option<Vec<String>>,
@@ -118,38 +177,35 @@ pub struct BuildFile {
     maintainers: Option<Vec<String>>,
 }
 
-impl BuildFile {
-    pub fn from_toml_table(table: toml::Value) -> Result<BuildFile, BuildError> {
+impl PackageDesc {
+    pub fn from_toml_table(table: toml::Value) -> Result<PackageDesc, BuildError> {
         Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
     }
 
     // Creates a new blank BuldFile
-    pub fn new() -> BuildFile {
+    pub fn new() -> PackageDesc {
         Default::default()
     }
 
     // Creates a BuldFile struct from a TOML file
-    pub fn from_file(file: &str) -> Result<BTreeMap<String, BuildFile>, Vec<BuildError>> {
-         match parse_toml_file(file) {
+    pub fn from_file(file: &str) -> Result<PackageDesc, Vec<BuildError>> {
+        match parse_toml_file(file) {
             Ok(toml) => {
-                let mut map = BTreeMap::new();
-                for (key,value) in toml {
-                    match Decodable::decode(&mut toml::Decoder::new(value)) {
-                        Ok(s) => {
-                            if key == "package".to_string() {
-                                map.insert(key, s);
-                            }
-                        },
-                        Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
-                    };
+                match toml.get("package") {
+                    Some(package) => {
+                        match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
+                            Ok(s) => return Ok(s),
+                            Err(e) => { return Err(vec![BuildError::TomlDecode(e)]); },
+                        };
+                    }
+                    None => { return Err(vec![BuildError::NoBuildDesc]) },
                 };
-                return Ok(map);
             },
             Err(e) => { return Err(e) }
         }
     }
 
-    // Prints the BuildFile's serialized TOML as pretty JSON
+    // Prints the PackageDesc's serialized TOML as pretty JSON
     pub fn print_json(&self) {
         println!("{}", json::as_pretty_json(&self));
     }
@@ -179,7 +235,7 @@ pub trait Builder {
 }
 
 
-impl Builder for BuildFile {
+impl Builder for PackageDesc {
     fn assign_host_arch(&mut self) {
         if self.arch.is_none() {
             match env::consts::ARCH {
@@ -223,7 +279,7 @@ impl Builder for BuildFile {
         // Wrap this turd up
         match archive.finish() {
             Ok(_) => {
-                print!("{}\n", "OK".bold());
+                print!("{}\n", "OK".paint(Color::Green));
             },
             Err(e) => { return Err(Box::new(BuildError::Io(e))) }
         }
@@ -292,7 +348,7 @@ pub struct PkgInfo {
 }
 
 impl PkgInfo {
-    pub fn new(build_file: &BuildFile) -> PkgInfo {
+    pub fn new(build_file: &PackageDesc) -> PkgInfo {
         let mut info: PkgInfo = Default::default();
         info.name = build_file.name.clone().unwrap_or("Unknown".to_owned());
         info.vers = build_file.vers.clone().unwrap_or("Unknown".to_owned());
@@ -310,7 +366,7 @@ impl PkgInfo {
         println!("{}", json::as_pretty_json(&self));
     }
 
-    pub fn update_size(&mut self, build_file: &BuildFile) {
+    pub fn update_size(&mut self, build_file: &PackageDesc) {
         self.size = build_file.pkg_size().unwrap_or(0);
     }
 
@@ -331,39 +387,40 @@ fn test_default_arch() {
 
 #[test]
 fn test_new_empty_build_file() {
-    let build_file = BuildFile::new();
+    let build_file = PackageDesc::new();
     assert_eq!(build_file.name, None);
     assert_eq!(build_file.vers, None);
     assert_eq!(build_file.build, None);
 }
 
 #[test]
+#[should_panic]
 fn test_from_file_fail() {
-    let build_file = match BuildFile::from_file("none.toml") {
-        Some(s) => s,
-        None => BuildFile::new(),
+    let build_file = match PackageDesc::from_file("none.toml") {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
     };
-    assert_eq!(build_file.name, None);
+    assert_eq!(build_file, Ok(()));
 }
 
 #[test]
 fn test_from_file_success() {
-    let build_file = match BuildFile::from_file("example/PKG.toml") {
-        Some(s) => { s },
-        None => { panic!() }
+    let build_file = match PackageDesc::from_file("example/PKG.toml") {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
     };
-    assert_eq!(build_file.name.unwrap(), "hello-mpm".to_owned());
+    assert_eq!(build_file, Ok(()));
 }
 
 #[test]
 fn test_print_json() {
-    let build_file = BuildFile::from_file("example/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/PKG.toml").unwrap();
     build_file.print_json();
 }
 
 #[test]
 fn test_new_empty_pkginfo() {
-    let build_file = BuildFile::from_file("example/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/PKG.toml").unwrap();
     let info = PkgInfo::new(&build_file);
     assert_eq!(info.name, build_file.name.unwrap_or("Unknown".to_owned()));
 }
