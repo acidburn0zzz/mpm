@@ -56,10 +56,7 @@ pub struct PackageBuild {
 
 impl PackageBuild {
     pub fn from_file(file: &str) -> Result<PackageBuild, Vec<BuildError>> {
-        match assert_toml(file) {
-            Ok(_) => (),
-            Err(e) => return Err(vec![e])
-        };
+        try!(assert_toml(file));
         let mut pkg_build: PackageBuild = Default::default();
         match parse_toml_file(file) {
             Ok(toml) => {
@@ -127,16 +124,17 @@ impl CleanDesc {
                             println!("{}", try!(child_output.read(&mut Vec::new())));
                         }
                         // Child process has no output
-                        None => ()
+                        None => (),
                     };
                     match status.code() {
                         Some(code) => {
                             if code != 0 {
                                 println!("'{}' terminated with code '{}'",
-                                    s.0.bold(), code.to_string().bold());
+                                         s.0.bold(),
+                                         code.to_string().bold());
                             }
-                        },
-                        None => ()
+                        }
+                        None => (),
                     };
                 }
                 None => (),
@@ -151,26 +149,15 @@ impl CleanDesc {
     }
 
     pub fn from_file(file: &str) -> Result<CleanDesc, Vec<BuildError>> {
-        match assert_toml(file) {
-            Ok(_) => (),
-            Err(e) => return Err(vec![e])
-        };
-        match parse_toml_file(file) {
-            Ok(toml) => {
-                match toml.get("clean") {
-                    Some(package) => {
-                        match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
-                            Ok(s) => return Ok(s),
-                            Err(e) => {
-                                return Err(vec![BuildError::TomlDecode(e)]);
-                            }
-                        };
-                    }
-                    None => return Err(vec![BuildError::NoCleanDesc]),
-                };
-            }
-            Err(e) => return Err(e),
-        }
+        try!(assert_toml(file));
+        parse_toml_file(file).and_then(|toml| {
+            toml.get("clean")
+                .ok_or(vec![BuildError::NoCleanDesc])
+                .and_then(|desc| {
+                    Decodable::decode(&mut toml::Decoder::new(desc.clone()))
+                        .map_err(|err| vec![BuildError::TomlDecode(err)])
+                })
+        })
     }
 }
 
@@ -207,26 +194,15 @@ impl PackageDesc {
 
     // Creates a BuldFile struct from a TOML file
     pub fn from_file(file: &str) -> Result<PackageDesc, Vec<BuildError>> {
-        match assert_toml(file) {
-            Ok(_) => (),
-            Err(e) => return Err(vec![e])
-        };
-        match parse_toml_file(file) {
-            Ok(toml) => {
-                match toml.get("package") {
-                    Some(package) => {
-                        match Decodable::decode(&mut toml::Decoder::new(package.clone())) {
-                            Ok(s) => return Ok(s),
-                            Err(e) => {
-                                return Err(vec![BuildError::TomlDecode(e)]);
-                            }
-                        };
-                    }
-                    None => return Err(vec![BuildError::NoBuildDesc]),
-                };
-            }
-            Err(e) => return Err(e),
-        }
+        try!(assert_toml(file));
+        parse_toml_file(file).and_then(|toml| {
+            toml.get("package")
+                .ok_or(vec![BuildError::NoBuildDesc])
+                .and_then(|desc| {
+                    Decodable::decode(&mut toml::Decoder::new(desc.clone()))
+                        .map_err(|err| vec![BuildError::TomlDecode(err)])
+                })
+        })
     }
 
     // Prints the PackageDesc's serialized TOML as pretty JSON
@@ -325,10 +301,11 @@ impl Builder for PackageDesc {
             Some(status) => {
                 if status != 0 {
                     println!("'{}' terminated with code '{}'",
-                             cmd.bold(), status.to_string().bold());
+                             cmd.bold(),
+                             status.to_string().bold());
                 }
-            },
-            None => ()
+            }
+            None => (),
         }
     }
 

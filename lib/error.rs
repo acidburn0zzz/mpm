@@ -21,6 +21,7 @@ pub enum BuildError {
     NoBuildDesc,
     NoCleanDesc,
     NoDesc,
+    CmdParse,
 }
 
 impl fmt::Display for BuildError {
@@ -33,9 +34,10 @@ impl fmt::Display for BuildError {
             BuildError::TomlDecode(ref err) => write!(f, "toml decoding error, {}", err),
             BuildError::JsonEncode(ref err) => write!(f, "json encoding error {}", err),
             BuildError::NonToml(ref file) => write!(f, "'{}' is not a toml file", file),
-            BuildError::NoBuildDesc => write!(f, "no package section found in PKG.toml"),
-            BuildError::NoCleanDesc => write!(f, "no clean section found in PKG.toml"),
-            BuildError::NoDesc => write!(f, "no package nor clean section found in PKG.toml"),
+            BuildError::NoBuildDesc => write!(f, "no 'package' section found in PKG.toml"),
+            BuildError::NoCleanDesc => write!(f, "no 'clean' section found in PKG.toml"),
+            BuildError::NoDesc => write!(f, "no 'package' nor 'clean' section found in PKG.toml"),
+            BuildError::CmdParse => write!(f, "command parse error"),
         }
     }
 }
@@ -50,9 +52,10 @@ impl Error for BuildError {
             BuildError::TomlDecode(ref err) => err.description(),
             BuildError::JsonEncode(ref err) => err.description(),
             BuildError::NonToml(..) => "toml file error",
-            BuildError::NoBuildDesc => "no package table in toml file",
-            BuildError::NoCleanDesc => "no clean table in toml file",
-            BuildError::NoDesc => "no package nor clean section found in PKG.toml",
+            BuildError::NoBuildDesc => "no 'package' table in toml file",
+            BuildError::NoCleanDesc => "no 'clean' table in toml file",
+            BuildError::NoDesc => "no 'package' nor 'clean' section found in PKG.toml",
+            BuildError::CmdParse => "command parse error",
         }
     }
 
@@ -68,6 +71,7 @@ impl Error for BuildError {
             BuildError::NoBuildDesc => None,
             BuildError::NoCleanDesc => None,
             BuildError::NoDesc => None,
+            BuildError::CmdParse => None,
         }
     }
 }
@@ -105,5 +109,11 @@ impl From<toml::DecodeError> for BuildError {
 impl From<rustc_serialize::json::EncoderError> for BuildError {
     fn from(err: rustc_serialize::json::EncoderError) -> BuildError {
         BuildError::JsonEncode(err)
+    }
+}
+
+impl From<BuildError> for Vec<BuildError> {
+    fn from(err: BuildError) -> Vec<BuildError> {
+        vec![err]
     }
 }
