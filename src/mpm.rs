@@ -6,7 +6,6 @@ use std::env;
 use rpf::*;
 use pgetopts::Options;
 use util::build::*;
-use util::ext::*;
 
 pub static MPM: Prog = Prog {
     name: "mpm",
@@ -59,21 +58,11 @@ fn main() {
         for item in matches.free {
             match PackageDesc::from_file(&*item) {
                 Ok(mut package) => {
-                    match assert_toml(&*item) {
-                        Ok(_) => {
-                            match package.build() {
-                                Ok(_) => {
-                                    match package.create_pkg() {
-                                        Ok(_) => {}
-                                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
-                                    }
-                                }
+                            match package.create_pkg() {
+                                Ok(_) => (),
                                 Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                             };
-                        }
-                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
-                    };
-                }
+                },
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
@@ -87,16 +76,11 @@ fn main() {
         for item in matches.free {
             match CleanDesc::from_file(&*item) {
                 Ok(clean) => {
-                    match assert_toml(&*item) {
-                        Ok(_) => {
-                            match clean.exec() {
-                                Ok(_) => {}
-                                Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
-                            }
-                        }
+                    match clean.exec() {
+                        Ok(_) => {}
                         Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
                     }
-                }
+                },
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));

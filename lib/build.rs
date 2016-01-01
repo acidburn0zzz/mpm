@@ -5,7 +5,7 @@ extern crate tar;
 extern crate time;
 extern crate walkdir;
 
-use ext::{Splits, parse_toml_file, strip_parent};
+use ext::{Splits, parse_toml_file, strip_parent, assert_toml};
 use error::BuildError;
 
 use std::env;
@@ -56,6 +56,10 @@ pub struct PackageBuild {
 
 impl PackageBuild {
     pub fn from_file(file: &str) -> Result<PackageBuild, Vec<BuildError>> {
+        match assert_toml(file) {
+            Ok(_) => (),
+            Err(e) => return Err(vec![e])
+        };
         let mut pkg_build: PackageBuild = Default::default();
         match parse_toml_file(file) {
             Ok(toml) => {
@@ -116,15 +120,23 @@ impl CleanDesc {
             match parsed_line.split_frst() {
                 Some(s) => {
                     let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                    try!(command.wait());
+                    let status = try!(command.wait());
                     match command.stdout.as_mut() {
                         // Child process has output
                         Some(child_output) => {
-                            let mut buff = String::new();
-                            println!("{}", try!(child_output.read_to_string(&mut buff)));
+                            println!("{}", try!(child_output.read(&mut Vec::new())));
                         }
                         // Child process has no output
-                        None => {}
+                        None => ()
+                    };
+                    match status.code() {
+                        Some(code) => {
+                            if code != 0 {
+                                println!("'{}' terminated with code '{}'",
+                                    s.0.bold(), code.to_string().bold());
+                            }
+                        },
+                        None => ()
                     };
                 }
                 None => (),
@@ -139,6 +151,10 @@ impl CleanDesc {
     }
 
     pub fn from_file(file: &str) -> Result<CleanDesc, Vec<BuildError>> {
+        match assert_toml(file) {
+            Ok(_) => (),
+            Err(e) => return Err(vec![e])
+        };
         match parse_toml_file(file) {
             Ok(toml) => {
                 match toml.get("clean") {
@@ -191,6 +207,10 @@ impl PackageDesc {
 
     // Creates a BuldFile struct from a TOML file
     pub fn from_file(file: &str) -> Result<PackageDesc, Vec<BuildError>> {
+        match assert_toml(file) {
+            Ok(_) => (),
+            Err(e) => return Err(vec![e])
+        };
         match parse_toml_file(file) {
             Ok(toml) => {
                 match toml.get("package") {
@@ -236,6 +256,7 @@ pub trait Builder {
     fn build(&self) -> Result<(), Box<error::Error>>;
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
+    fn handle_status(&self, cmd: &str, code: Option<i32>);
 }
 
 
@@ -261,6 +282,7 @@ impl Builder for PackageDesc {
 
     // Creates a package tarball
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
+        &self.build();
         let tar = try!(self.create_tar_file());
         let archive = Archive::new(tar.0);
         try!(self.set_builddate());
@@ -298,6 +320,18 @@ impl Builder for PackageDesc {
         unimplemented!();
     }
 
+    fn handle_status(&self, cmd: &str, code: Option<i32>) {
+        match code {
+            Some(status) => {
+                if status != 0 {
+                    println!("'{}' terminated with code '{}'",
+                             cmd.bold(), status.to_string().bold());
+                }
+            },
+            None => ()
+        }
+    }
+
     fn build(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Beginning package build".bold());
         for line in self.build.clone().unwrap() {
@@ -306,7 +340,7 @@ impl Builder for PackageDesc {
             match parsed_line.split_frst() {
                 Some(s) => {
                     let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                    try!(command.wait());
+                    let status = try!(command.wait());
                     match command.stdout.as_mut() {
                         // Child process has output
                         Some(child_output) => {
@@ -316,6 +350,8 @@ impl Builder for PackageDesc {
                         // Child process has no output
                         None => {}
                     };
+                    &self.handle_status(s.0, status.code());
+
                 }
                 None => (),
             };

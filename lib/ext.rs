@@ -9,23 +9,22 @@ use rpf::*;
 
 use toml::Value;
 use rustc_serialize::json::Json;
-use std::error;
 use std::fs;
 use error::BuildError;
 
-pub fn assert_toml(file: &str) -> Result<(), Box<error::Error>> {
+pub fn assert_toml(file: &str) -> Result<(), BuildError> {
     let metadata = try!(fs::metadata(file));
     if metadata.is_dir() {
-        return Err(Box::new(BuildError::NonToml(file.to_string())));
+        return Err(BuildError::NonToml(file.to_string()));
     } else if metadata.is_file() {
         match file.as_path().extension() {
             Some(ext) => {
                 if ext != "toml" && ext != "tml" {
-                    return Err(Box::new(BuildError::NonToml(file.to_string())));
+                    return Err(BuildError::NonToml(file.to_string()));
                 }
             }
             None => {
-                return Err(Box::new(BuildError::NonToml(file.to_string())));
+                return Err(BuildError::NonToml(file.to_string()));
             }
         }
     }
