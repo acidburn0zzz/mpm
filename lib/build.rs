@@ -113,13 +113,13 @@ impl CleanDesc {
                 if let Some(child_output) = command.stdout.as_mut() {
                     // Child process has output
                     println!("{}", try!(child_output.read(&mut Vec::new())));
-                    if let Some(code) = status.code() {
-                        if code != 0 {
-                            println!("'{}' terminated with code '{}'",
-                                     s.0.bold(),
-                                     code.to_string().bold());
-                        }
-                    };
+                };
+                if let Some(code) = status.code() {
+                    if code != 0 {
+                        println!("'{}' terminated with code '{}'",
+                                 s.0.bold(),
+                                 code.to_string().bold());
+                    }
                 };
             }
         }
