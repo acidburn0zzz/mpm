@@ -11,6 +11,8 @@ pgetopts = "0.1"
 tar = "0.3"
 time = "0.1"
 walkdir = "0.1"
+git2 = "0.3"
+rust-crypto = "0.2"
 
 [lib]
 name = "util"
