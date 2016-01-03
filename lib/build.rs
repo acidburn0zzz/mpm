@@ -58,36 +58,25 @@ impl PackageBuild {
     pub fn from_file(file: &str) -> Result<PackageBuild, Vec<BuildError>> {
         try!(assert_toml(file));
         let mut pkg_build: PackageBuild = Default::default();
-        match parse_toml_file(file) {
-            Ok(toml) => {
+        parse_toml_file(file)
+            .and_then(|toml| {
                 for (key, table) in toml {
                     match key.as_ref() {
                         "package" => pkg_build.package = PackageDesc::from_toml_table(table).ok(),
                         "clean" => pkg_build.clean = CleanDesc::from_toml_table(table).ok(),
                         _ => (),
-                    }
+                    };
                 }
-            }
-            Err(e) => return Err(e),
-        }
-        Ok(pkg_build)
+                Ok(pkg_build)
+            })
+            .map_err(|err| err)
     }
 
     pub fn print_json(self) {
-        match self.package {
-            Some(p) => {
-                println!("{}", "[package]".bold());
-                p.print_json();
-            }
-            None => {}
-        };
-        match self.clean {
-            Some(c) => {
-                println!("{}", "[clean]".bold());
-                c.print_json();
-            }
-            None => {}
-        }
+        println!("{}", "[package]".bold());
+        self.package.unwrap_or(PackageDesc::new()).print_json();
+        println!("{}", "[clean]".bold());
+        self.clean.unwrap_or(CleanDesc::new()).print_json();
     }
 
     pub fn package(self) -> Option<PackageDesc> {
@@ -105,6 +94,10 @@ pub struct CleanDesc {
 }
 
 impl CleanDesc {
+    pub fn new() -> CleanDesc {
+        Default::default()
+    }
+
     pub fn from_toml_table(table: toml::Value) -> Result<CleanDesc, BuildError> {
         Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
     }
