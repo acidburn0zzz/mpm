@@ -58,11 +58,10 @@ fn main() {
         for item in matches.free {
             match PackageDesc::from_file(&*item) {
                 Ok(mut package) => {
-                            match package.create_pkg() {
-                                Ok(_) => (),
-                                Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
-                            };
-                },
+                    if let Err(e) = package.create_pkg() {
+                        MPM.error(e.to_string(), ExitStatus::Error);
+                    };
+                }
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));
@@ -76,11 +75,10 @@ fn main() {
         for item in matches.free {
             match CleanDesc::from_file(&*item) {
                 Ok(clean) => {
-                    match clean.exec() {
-                        Ok(_) => {}
-                        Err(e) => MPM.error(e.to_string(), ExitStatus::Error),
+                    if let Err(e) = clean.exec() {
+                        MPM.error(e.to_string(), ExitStatus::Error);
                     }
-                },
+                }
                 Err(e) => {
                     for error in e {
                         println!("{}", error.to_string().paint(Color::Red));

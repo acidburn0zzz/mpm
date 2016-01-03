@@ -107,31 +107,21 @@ impl CleanDesc {
         for line in &self.script.clone().unwrap_or(vec!["".to_string()]) {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
-            match parsed_line.split_frst() {
-                Some(s) => {
-                    let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                    let status = try!(command.wait());
-                    match command.stdout.as_mut() {
-                        // Child process has output
-                        Some(child_output) => {
-                            println!("{}", try!(child_output.read(&mut Vec::new())));
+            if let Some(s) = parsed_line.split_frst() {
+                let mut command = try!(Command::new(s.0).args(s.1).spawn());
+                let status = try!(command.wait());
+                if let Some(child_output) = command.stdout.as_mut() {
+                    // Child process has output
+                    println!("{}", try!(child_output.read(&mut Vec::new())));
+                    if let Some(code) = status.code() {
+                        if code != 0 {
+                            println!("'{}' terminated with code '{}'",
+                                     s.0.bold(),
+                                     code.to_string().bold());
                         }
-                        // Child process has no output
-                        None => (),
                     };
-                    match status.code() {
-                        Some(code) => {
-                            if code != 0 {
-                                println!("'{}' terminated with code '{}'",
-                                         s.0.bold(),
-                                         code.to_string().bold());
-                            }
-                        }
-                        None => (),
-                    };
-                }
-                None => (),
-            };
+                };
+            }
         }
         Ok(println!("{}", "Clean succeeded".bold()))
     }
@@ -272,11 +262,10 @@ impl Builder for PackageDesc {
             }
         }
         // Wrap this turd up
-        match archive.finish() {
-            Ok(_) => {
-                print!("{}\n", "OK".paint(Color::Green));
-            }
-            Err(e) => return Err(Box::new(BuildError::Io(e))),
+        if let Err(e) = archive.finish() {
+            return Err(Box::new(BuildError::Io(e)));
+        } else {
+            print!("{}\n", "OK".paint(Color::Green))
         }
         Ok(println!("{} '{}' {}",
                     "Package".bold(),
@@ -290,16 +279,13 @@ impl Builder for PackageDesc {
     }
 
     fn handle_status(&self, cmd: &str, code: Option<i32>) {
-        match code {
-            Some(status) => {
-                if status != 0 {
-                    println!("'{}' terminated with code '{}'",
-                             cmd.bold(),
-                             status.to_string().bold());
-                }
+        if let Some(status) = code {
+            if status != 0 {
+                println!("'{}' terminated with code '{}'",
+                         cmd.bold(),
+                         status.to_string().bold());
             }
-            None => (),
-        }
+        };
     }
 
     fn build(&self) -> Result<(), Box<error::Error>> {
@@ -307,23 +293,15 @@ impl Builder for PackageDesc {
         for line in self.build.clone().unwrap() {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
-            match parsed_line.split_frst() {
-                Some(s) => {
-                    let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                    let status = try!(command.wait());
-                    match command.stdout.as_mut() {
-                        // Child process has output
-                        Some(child_output) => {
-                            let mut buff = String::new();
-                            println!("{}", try!(child_output.read_to_string(&mut buff)));
-                        }
-                        // Child process has no output
-                        None => {}
-                    };
-                    &self.handle_status(s.0, status.code());
-
-                }
-                None => (),
+            if let Some(s) = parsed_line.split_frst() {
+                let mut command = try!(Command::new(s.0).args(s.1).spawn());
+                let status = try!(command.wait());
+                if let Some(child_output) = command.stdout.as_mut() {
+                    // Child process has output
+                    let mut buff = String::new();
+                    println!("{}", try!(child_output.read_to_string(&mut buff)));
+                };
+                &self.handle_status(s.0, status.code());
             };
         }
         Ok(println!("{}", "Build succeeded".bold()))
