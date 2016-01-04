@@ -91,30 +91,6 @@ pub fn convert(toml: toml::Value) -> Json {
     }
 }
 
-// This trait is temporary until `split` is considered stable in std
-pub trait Splits<T> {
-    fn split_frst(&self) -> Option<(&T, &[T])>;
-    fn split_lst(&self) -> Option<(&T, &[T])>;
-}
-
-impl<T> Splits<T> for [T] {
-    fn split_frst(&self) -> Option<(&T, &[T])> {
-        if self.is_empty() {
-            None
-        } else {
-            Some((&self[0], &self[1..]))
-        }
-    }
-    fn split_lst(&self) -> Option<(&T, &[T])> {
-        let len = self.len();
-        if self.is_empty() {
-            None
-        } else {
-            Some((&self[len - 1], &self[..(len - 1)]))
-        }
-    }
-}
-
 #[test]
 fn test_strip_parent() {
     let test_path = PathBuf::from("test/build/dir");
