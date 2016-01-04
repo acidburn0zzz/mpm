@@ -4,8 +4,10 @@ extern crate rpf;
 extern crate tar;
 extern crate time;
 extern crate walkdir;
+extern crate git2;
+extern crate hyper;
 
-use ext::{Splits, parse_toml_file, strip_parent, assert_toml};
+use ext::{parse_toml_file, strip_parent, assert_toml};
 use error::BuildError;
 
 use std::env;
@@ -23,6 +25,8 @@ use tar::Archive;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use rustc_serialize::json;
 use walkdir::WalkDir;
+use git2::Repository;
+use hyper::client::Client;
 
 #[allow(non_camel_case_types)]
 #[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone)]
@@ -107,7 +111,7 @@ impl CleanDesc {
         for line in &self.script.clone().unwrap_or(vec!["".to_string()]) {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
-            if let Some(s) = parsed_line.split_frst() {
+            if let Some(s) = parsed_line.split_first() {
                 let mut command = try!(Command::new(s.0).args(s.1).spawn());
                 let status = try!(command.wait());
                 if let Some(child_output) = command.stdout.as_mut() {
@@ -158,7 +162,9 @@ pub struct PackageDesc {
     deps: Option<Vec<String>>,
     arch: Option<Vec<Arch>>,
     url: Option<String>,
-    source: Option<String>,
+    source: Option<Vec<String>>,
+    sha256: Option<Vec<String>>,
+    sha512: Option<Vec<String>>,
     license: Option<String>,
     provides: Option<String>,
     conflicts: Option<Vec<String>>,
@@ -216,6 +222,9 @@ pub trait Builder {
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
     fn handle_status(&self, cmd: &str, code: Option<i32>);
+    fn handle_source(&self) -> Result<(), Box<error::Error>>;
+    fn clone_repo(&self, url: &str) -> Result<Repository, BuildError>;
+    fn web_get(&self, url: &str) -> Result<(), Box<error::Error>>;
 }
 
 
@@ -241,12 +250,11 @@ impl Builder for PackageDesc {
 
     // Creates a package tarball
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
-        &self.build();
+        try!(self.build());
         let tar = try!(self.create_tar_file());
         let archive = Archive::new(tar.0);
         try!(self.set_builddate());
-        let pkg_info = PkgInfo::new(&self);
-        try!(pkg_info.write("build/PKGINFO"));
+        try!(PkgInfo::new(&self).write("build/PKGINFO"));
         print!("{}", "Compressing package..".bold());
         for entry in WalkDir::new("build") {
             let entry = try!(entry);
@@ -288,12 +296,53 @@ impl Builder for PackageDesc {
         };
     }
 
+    fn handle_source(&self) -> Result<(), Box<error::Error>> {
+        if let Some(source) = self.source.clone() {
+            for item in source {
+                let pos = item.find('+').unwrap_or(item.len());
+                let (cvs, url) = item.split_at(pos);
+                if cvs == "git" {
+                    try!(self.clone_repo(url));
+                } else {
+                    try!(self.web_get(cvs));
+                }
+            }
+        };
+        Ok(())
+    }
+
+    fn web_get(&self, url: &str) -> Result<(), Box<error::Error>> {
+        if let Some(file_name) = url.rsplit('/').nth(0) {
+            println!("Downloading: {}", url);
+            let mut res = try!(Client::new().get(url).send());
+            let mut buffer = Vec::new();
+            try!(res.read_to_end(&mut buffer));
+            if res.status != hyper::Ok {
+                return Err(Box::new(BuildError::HttpNoFile(res.status, url.to_owned())))
+            } else {
+                try!(try!(File::create(file_name)).write(&mut buffer));
+            }
+        }
+        Ok(())
+    }
+
+    fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
+        Repository::clone(url, "build")
+            .map_err(|err| BuildError::Git(err))
+            .map(|repo|{
+                println!("{} {}", "Cloning".bold(), url.bold());
+                repo
+            })
+    }
+
+
     fn build(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Beginning package build".bold());
+        try!(self.handle_source());
         for line in self.build.clone().unwrap() {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
-            if let Some(s) = parsed_line.split_frst() {
+            if let Some(s) = parsed_line.split_first() {
                 let mut command = try!(Command::new(s.0).args(s.1).spawn());
                 let status = try!(command.wait());
                 if let Some(child_output) = command.stdout.as_mut() {
@@ -318,7 +367,7 @@ impl Builder for PackageDesc {
                 };
             }
         }
-        return Ok(size);
+        Ok(size)
     }
 }
 

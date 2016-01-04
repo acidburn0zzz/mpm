@@ -2,6 +2,8 @@ extern crate toml;
 extern crate time;
 extern crate walkdir;
 extern crate rustc_serialize;
+extern crate git2;
+extern crate hyper;
 
 use std::io;
 use std::io::prelude::*;
@@ -17,11 +19,14 @@ pub enum BuildError {
     TomlParse(toml::ParserError),
     TomlDecode(toml::DecodeError),
     JsonEncode(rustc_serialize::json::EncoderError),
+    Git(git2::Error),
+    Hyper(hyper::error::Error),
     NonToml(String),
     NoBuildDesc,
     NoCleanDesc,
     NoDesc,
     CmdParse,
+    HttpNoFile(hyper::status::StatusCode, String),
 }
 
 impl fmt::Display for BuildError {
@@ -33,11 +38,14 @@ impl fmt::Display for BuildError {
             BuildError::TomlParse(ref err) => write!(f, "toml parsing error, {}", err),
             BuildError::TomlDecode(ref err) => write!(f, "toml decoding error, {}", err),
             BuildError::JsonEncode(ref err) => write!(f, "json encoding error {}", err),
+            BuildError::Git(ref err) => write!(f, "git error {}", err),
+            BuildError::Hyper(ref err) => write!(f, "hyper error {}", err),
             BuildError::NonToml(ref file) => write!(f, "'{}' is not a toml file", file),
             BuildError::NoBuildDesc => write!(f, "no 'package' section found in PKG.toml"),
             BuildError::NoCleanDesc => write!(f, "no 'clean' section found in PKG.toml"),
             BuildError::NoDesc => write!(f, "no 'package' nor 'clean' section found in PKG.toml"),
             BuildError::CmdParse => write!(f, "command parse error"),
+            BuildError::HttpNoFile(ref status_code, ref url)  => write!(f, "HTTP: {} from '{}'", status_code, url),
         }
     }
 }
@@ -51,11 +59,14 @@ impl Error for BuildError {
             BuildError::TomlParse(ref err) => err.description(),
             BuildError::TomlDecode(ref err) => err.description(),
             BuildError::JsonEncode(ref err) => err.description(),
+            BuildError::Git(ref err) => err.description(),
+            BuildError::Hyper(ref err) => err.description(),
             BuildError::NonToml(..) => "toml file error",
             BuildError::NoBuildDesc => "no 'package' table in toml file",
             BuildError::NoCleanDesc => "no 'clean' table in toml file",
             BuildError::NoDesc => "no 'package' nor 'clean' section found in PKG.toml",
             BuildError::CmdParse => "command parse error",
+            BuildError::HttpNoFile(..) => "http file error",
         }
     }
 
@@ -67,11 +78,14 @@ impl Error for BuildError {
             BuildError::TomlParse(ref err) => Some(err),
             BuildError::TomlDecode(ref err) => Some(err),
             BuildError::JsonEncode(ref err) => Some(err),
+            BuildError::Git(ref err) => Some(err),
+            BuildError::Hyper(ref err) => Some(err),
             BuildError::NonToml(..) => None,
             BuildError::NoBuildDesc => None,
             BuildError::NoCleanDesc => None,
             BuildError::NoDesc => None,
             BuildError::CmdParse => None,
+            BuildError::HttpNoFile(..) => None,
         }
     }
 }
@@ -109,6 +123,18 @@ impl From<toml::DecodeError> for BuildError {
 impl From<rustc_serialize::json::EncoderError> for BuildError {
     fn from(err: rustc_serialize::json::EncoderError) -> BuildError {
         BuildError::JsonEncode(err)
+    }
+}
+
+impl From<git2::Error> for BuildError {
+    fn from(err: git2::Error) -> BuildError {
+        BuildError::Git(err)
+    }
+}
+
+impl From<hyper::error::Error> for BuildError {
+    fn from(err: hyper::error::Error) -> BuildError {
+        BuildError::Hyper(err)
     }
 }
 
