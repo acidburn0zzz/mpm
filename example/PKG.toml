@@ -12,7 +12,7 @@ deps = [ ]
 provides = "test"
 prefix = "/usr"
 conflicts = ["test-git"]
-source = "example"
+source = [""] 
 build = [
 	'make',
 	'make DEST=build install'
