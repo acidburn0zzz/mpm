@@ -1,5 +1,7 @@
+sudo: required
+dist: trusty
 language: rust
 rust: stable
 script:
-    - cargo build --verbose
-    - cargo test
+    - cargo build -j2 --verbose
+    - cargo test -j2
