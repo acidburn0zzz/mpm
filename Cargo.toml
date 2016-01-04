@@ -13,6 +13,7 @@ time = "0.1"
 walkdir = "0.1"
 git2 = "0.3"
 rust-crypto = "0.2"
+hyper = "0.7"
 
 [lib]
 name = "util"
