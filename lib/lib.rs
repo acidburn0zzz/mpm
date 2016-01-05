@@ -6,6 +6,7 @@ extern crate time;
 extern crate walkdir;
 extern crate git2;
 extern crate hyper;
+extern crate crypto;
 
 pub mod build;
 pub mod ext;

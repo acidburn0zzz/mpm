@@ -6,6 +6,7 @@ extern crate time;
 extern crate walkdir;
 extern crate git2;
 extern crate hyper;
+extern crate crypto;
 
 use ext::{parse_toml_file, strip_parent, assert_toml};
 use error::BuildError;
@@ -27,6 +28,8 @@ use rustc_serialize::json;
 use walkdir::WalkDir;
 use git2::Repository;
 use hyper::client::Client;
+use crypto::sha2;
+use crypto::digest::Digest;
 
 #[allow(non_camel_case_types)]
 #[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone)]
@@ -230,10 +233,44 @@ pub trait Builder {
     fn handle_source(&self) -> Result<(), Box<error::Error>>;
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError>;
     fn web_get(&self, url: &str) -> Result<(), Box<error::Error>>;
+    fn sha_512(&self, tar: &str) -> Result<String, Box<error::Error>>;
+    fn sha_256(&self, tar: &str) -> Result<String, Box<error::Error>>;
+    fn match_hash(&self, tar: &str) -> Result<(), Box<error::Error>>;
 }
 
 
 impl Builder for PackageDesc {
+    fn sha_512(&self, tar: &str) -> Result<String, Box<error::Error>> {
+        let mut hasher = sha2::Sha512::new();
+        let mut buffer = Vec::new();
+        try!(try!(File::open(tar)).read_to_end(&mut buffer));
+        hasher.input(&buffer);
+        Ok(hasher.result_str())
+    }
+
+    fn sha_256(&self, tar: &str) -> Result<String, Box<error::Error>> {
+        let mut hasher = sha2::Sha256::new();
+        let mut buffer = Vec::new();
+        try!(try!(File::open(tar)).read_to_end(&mut buffer));
+        hasher.input(&buffer);
+        Ok(hasher.result_str())
+    }
+
+    fn match_hash(&self, tar: &str) -> Result<(), Box<error::Error>> {
+        if self.sha512.is_some() {
+            let hash = try!(self.sha_512(&tar));
+            if !self.sha512.clone().unwrap().contains(&hash) {
+                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)))
+            }
+        } else if self.sha256.is_some() {
+            let hash = try!(self.sha_256(&tar));
+            if !self.sha256.clone().unwrap().contains(&hash) {
+                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)))
+            }
+        }
+        Ok(())
+    }
+
     fn assign_host_arch(&mut self) {
         if self.arch.is_none() {
             match env::consts::ARCH {
@@ -315,6 +352,7 @@ impl Builder for PackageDesc {
                 } else {
                     try!(self.web_get(cvs));
                     if let Some(file_name) = cvs.rsplit('/').nth(0) {
+                        try!(self.match_hash(file_name));
                         try!(self.extract_tar(file_name));
                     };
                 }

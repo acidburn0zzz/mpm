@@ -13,6 +13,7 @@ provides = "test"
 prefix = "/usr"
 conflicts = ["test-git"]
 source = ["https://github.com/0X1A/hello-mpm/releases/download/0.0.0/hello-mpm.tar.gz"]
+sha512 = ["4c62cf269ddbe5eed11d01061287dd1c2be5df36b649e5bc823d68b1437f7680d6776f9c6dc183bd7ea704fab3ce9518631f0b0e1ff397b25c77bf3f5b95e8f0"]
 build = [
 	'make',
 	'make DEST=build install'

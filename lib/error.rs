@@ -27,6 +27,7 @@ pub enum BuildError {
     NoDesc,
     CmdParse,
     HttpNoFile(hyper::status::StatusCode, String),
+    HashMismatch(String, String),
 }
 
 impl fmt::Display for BuildError {
@@ -46,6 +47,7 @@ impl fmt::Display for BuildError {
             BuildError::NoDesc => write!(f, "no 'package' nor 'clean' section found in PKG.toml"),
             BuildError::CmdParse => write!(f, "command parse error"),
             BuildError::HttpNoFile(ref status_code, ref url)  => write!(f, "HTTP: {} from '{}'", status_code, url),
+            BuildError::HashMismatch(ref file, ref hash) => write!(f, "hash mismatch: '{}' : '{}'", file, hash),
         }
     }
 }
@@ -67,6 +69,7 @@ impl Error for BuildError {
             BuildError::NoDesc => "no 'package' nor 'clean' section found in PKG.toml",
             BuildError::CmdParse => "command parse error",
             BuildError::HttpNoFile(..) => "http file error",
+            BuildError::HashMismatch(..) => "hash mismatch",
         }
     }
 
@@ -86,6 +89,7 @@ impl Error for BuildError {
             BuildError::NoDesc => None,
             BuildError::CmdParse => None,
             BuildError::HttpNoFile(..) => None,
+            BuildError::HashMismatch(..) => None,
         }
     }
 }
