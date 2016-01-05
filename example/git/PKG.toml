@@ -12,7 +12,7 @@ deps = [ ]
 provides = "test"
 prefix = "/usr"
 conflicts = ["test-git"]
-source = [""] 
+source = ["git+http://github.com/0X1A/hello-mpm"]
 build = [
 	'make',
 	'make DEST=build install'
@@ -20,5 +20,6 @@ build = [
 
 [clean]
 script = [
-	'make clean',
+	'rm hello-mpm-x86_64.pkg.tar',
+	'rm -r build',
 ]
