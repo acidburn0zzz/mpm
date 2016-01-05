@@ -59,6 +59,10 @@ pub struct PackageBuild {
 }
 
 impl PackageBuild {
+    pub fn new() -> PackageBuild {
+        Default::default()
+    }
+
     pub fn from_file(file: &str) -> Result<PackageBuild, Vec<BuildError>> {
         try!(assert_toml(file));
         let mut pkg_build: PackageBuild = Default::default();
@@ -318,7 +322,7 @@ impl Builder for PackageDesc {
             let mut buffer = Vec::new();
             try!(res.read_to_end(&mut buffer));
             if res.status != hyper::Ok {
-                return Err(Box::new(BuildError::HttpNoFile(res.status, url.to_owned())))
+                return Err(Box::new(BuildError::HttpNoFile(res.status, url.to_owned())));
             } else {
                 try!(try!(File::create(file_name)).write(&mut buffer));
             }
@@ -329,7 +333,7 @@ impl Builder for PackageDesc {
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
         Repository::clone(url, "build")
             .map_err(|err| BuildError::Git(err))
-            .map(|repo|{
+            .map(|repo| {
                 println!("{} {}", "Cloning".bold(), url.bold());
                 repo
             })
@@ -422,7 +426,53 @@ fn test_default_arch() {
 }
 
 #[test]
-fn test_new_empty_build_file() {
+fn test_new_pkgbuild() {
+    let pkg_build = PackageBuild::new();
+    assert_eq!(pkg_build.package, None);
+    assert_eq!(pkg_build.clean, None);
+}
+
+#[test]
+#[should_panic]
+fn test_pkgbuild_from_file_fail() {
+    let pkg_build = match PackageBuild::from_file("none.toml") {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
+    };
+    assert_eq!(pkg_build, Ok(()));
+}
+
+#[test]
+fn test_pkgbuild_from_file_success() {
+    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
+    };
+    assert_eq!(pkg_build, Ok(()));
+}
+
+#[test]
+#[should_panic]
+fn test_pkgbuild_package() {
+    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+        Ok(pkg) => pkg,
+        Err(_) => PackageBuild::new(),
+    };
+    assert_eq!(pkg_build.package(), None);
+}
+
+#[test]
+#[should_panic]
+fn test_pkgbuild_clean() {
+    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+        Ok(pkg) => pkg,
+        Err(_) => PackageBuild::new(),
+    };
+    assert_eq!(pkg_build.clean(), None);
+}
+
+#[test]
+fn test_new_empty_pkgdesc() {
     let build_file = PackageDesc::new();
     assert_eq!(build_file.name, None);
     assert_eq!(build_file.vers, None);
@@ -431,7 +481,7 @@ fn test_new_empty_build_file() {
 
 #[test]
 #[should_panic]
-fn test_from_file_fail() {
+fn test_pkgdesc_from_file_fail() {
     let build_file = match PackageDesc::from_file("none.toml") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
@@ -440,7 +490,7 @@ fn test_from_file_fail() {
 }
 
 #[test]
-fn test_from_file_success() {
+fn test_pkgdesc_from_file_success() {
     let build_file = match PackageDesc::from_file("example/PKG.toml") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
@@ -449,7 +499,18 @@ fn test_from_file_success() {
 }
 
 #[test]
-fn test_print_json() {
+fn test_pkgdesc_from_toml_table_success() {
+    let test_desc = PackageDesc::from_file("example/PKG.toml").unwrap();
+    if let Ok(toml) = parse_toml_file("example/PKG.toml") {
+        if let Some(pkg) = toml.get("package") {
+            let desc = PackageDesc::from_toml_table(pkg.clone()).unwrap();
+            assert_eq!(test_desc, desc);
+        };
+    };
+}
+
+#[test]
+fn test_pkgdesc_print_json() {
     let build_file = PackageDesc::from_file("example/PKG.toml").unwrap();
     build_file.print_json();
 }
