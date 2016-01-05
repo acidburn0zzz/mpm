@@ -18,7 +18,7 @@ mostly and primarily a side project, for fun.
 
 ## Creating a Package
 `mpm` uses toml files to describe a package. The following is an example
-schema (found in the `example` directory), please note that this is subject to
+schema (found in the `example/tar` directory), please note that this is subject to
 change:
 ```toml
 [package]
@@ -35,7 +35,7 @@ deps = [ ]
 provides = "test"
 prefix = "/usr"
 conflicts = ["test-git"]
-source = "example"
+source = ["https://github.com/0X1A/hello-mpm/releases/download/0.0.0/hello-mpm.tar.gz"]
 build = [
 	'make',
 	'make DEST=build install'
@@ -43,7 +43,9 @@ build = [
 
 [clean]
 script = [
-	'make clean',
+	'rm -v hello-mpm.tar.gz',
+	'rm -v hello-mpm-x86_64.pkg.tar',
+	'rm -rv build',
 ]
 ```
 
