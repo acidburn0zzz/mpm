@@ -217,6 +217,7 @@ pub trait Builder {
     fn assign_host_arch(&mut self);
     // Creates a package from tar file
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>>;
+    fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>>;
     // Creates a tar file
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>>;
     // Sets the build environment for the package
@@ -246,16 +247,20 @@ impl Builder for PackageDesc {
 
     // 'touches' a tarball file using the string in 'name' as a file name
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>> {
+        let mut current_dir = try!(env::current_dir());
         let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
         tar_name.push_str(&format!("-{:?}", self.arch.clone().unwrap().first().unwrap()));
         tar_name.push_str(".pkg.tar");
-        Ok((try!(File::create(&tar_name)), tar_name))
+        current_dir.push(&tar_name);
+        Ok((try!(File::create(current_dir)), tar_name))
     }
 
     // Creates a package tarball
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
-        try!(self.build());
+        try!(self.handle_source());
         let tar = try!(self.create_tar_file());
+        try!(env::set_current_dir("build"));
+        try!(self.build());
         let archive = Archive::new(tar.0);
         try!(self.set_builddate());
         try!(PkgInfo::new(&self).write("build/PKGINFO"));
@@ -306,9 +311,12 @@ impl Builder for PackageDesc {
                 let pos = item.find('+').unwrap_or(item.len());
                 let (cvs, url) = item.split_at(pos);
                 if cvs == "git" {
-                    try!(self.clone_repo(url));
+                    try!(self.clone_repo(&url.replace("+","")));
                 } else {
                     try!(self.web_get(cvs));
+                    if let Some(file_name) = cvs.rsplit('/').nth(0) {
+                        try!(self.extract_tar(file_name));
+                    };
                 }
             }
         };
@@ -330,6 +338,11 @@ impl Builder for PackageDesc {
         Ok(())
     }
 
+    fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>> {
+        try!(Archive::new(try!(File::open(path))).unpack("build"));
+        Ok(())
+    }
+
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
         Repository::clone(url, "build")
             .map_err(|err| BuildError::Git(err))
@@ -342,7 +355,6 @@ impl Builder for PackageDesc {
 
     fn build(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Beginning package build".bold());
-        try!(self.handle_source());
         for line in self.build.clone().unwrap() {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
@@ -444,7 +456,7 @@ fn test_pkgbuild_from_file_fail() {
 
 #[test]
 fn test_pkgbuild_from_file_success() {
-    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+    let pkg_build = match PackageBuild::from_file("example/tar/PKG.toml") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
     };
@@ -454,7 +466,7 @@ fn test_pkgbuild_from_file_success() {
 #[test]
 #[should_panic]
 fn test_pkgbuild_package() {
-    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+    let pkg_build = match PackageBuild::from_file("example/tar/PKG.toml") {
         Ok(pkg) => pkg,
         Err(_) => PackageBuild::new(),
     };
@@ -464,7 +476,7 @@ fn test_pkgbuild_package() {
 #[test]
 #[should_panic]
 fn test_pkgbuild_clean() {
-    let pkg_build = match PackageBuild::from_file("example/PKG.toml") {
+    let pkg_build = match PackageBuild::from_file("example/tar/PKG.toml") {
         Ok(pkg) => pkg,
         Err(_) => PackageBuild::new(),
     };
@@ -491,7 +503,7 @@ fn test_pkgdesc_from_file_fail() {
 
 #[test]
 fn test_pkgdesc_from_file_success() {
-    let build_file = match PackageDesc::from_file("example/PKG.toml") {
+    let build_file = match PackageDesc::from_file("example/tar/PKG.toml") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
     };
@@ -500,8 +512,8 @@ fn test_pkgdesc_from_file_success() {
 
 #[test]
 fn test_pkgdesc_from_toml_table_success() {
-    let test_desc = PackageDesc::from_file("example/PKG.toml").unwrap();
-    if let Ok(toml) = parse_toml_file("example/PKG.toml") {
+    let test_desc = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
+    if let Ok(toml) = parse_toml_file("example/tar/PKG.toml") {
         if let Some(pkg) = toml.get("package") {
             let desc = PackageDesc::from_toml_table(pkg.clone()).unwrap();
             assert_eq!(test_desc, desc);
@@ -511,13 +523,13 @@ fn test_pkgdesc_from_toml_table_success() {
 
 #[test]
 fn test_pkgdesc_print_json() {
-    let build_file = PackageDesc::from_file("example/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
     build_file.print_json();
 }
 
 #[test]
 fn test_new_empty_pkginfo() {
-    let build_file = PackageDesc::from_file("example/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
     let info = PkgInfo::new(&build_file);
     assert_eq!(info.name, build_file.name.unwrap_or("Unknown".to_owned()));
 }
