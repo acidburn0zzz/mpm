@@ -56,7 +56,7 @@ fn main() {
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            match PackageDesc::from_file(&*item) {
+            match PackageDesc::from_file(&*item, "package") {
                 Ok(mut package) => {
                     if let Err(e) = package.create_pkg() {
                         MPM.error(e.to_string(), ExitStatus::Error);
@@ -73,7 +73,7 @@ fn main() {
         }
     } else if matches.opt_present("c") {
         for item in matches.free {
-            match CleanDesc::from_file(&*item) {
+            match CleanDesc::from_file(&*item, "clean") {
                 Ok(clean) => {
                     if let Err(e) = clean.exec() {
                         MPM.error(e.to_string(), ExitStatus::Error);

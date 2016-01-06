@@ -109,10 +109,6 @@ impl CleanDesc {
         Default::default()
     }
 
-    pub fn from_toml_table(table: toml::Value) -> Result<CleanDesc, BuildError> {
-        Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
-    }
-
     pub fn exec(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Cleaning build environment".bold());
         for line in &self.script.clone().unwrap_or(vec!["".to_string()]) {
@@ -141,18 +137,6 @@ impl CleanDesc {
     pub fn print_json(&self) {
         println!("{}", json::as_pretty_json(&self));
     }
-
-    pub fn from_file(file: &str) -> Result<CleanDesc, Vec<BuildError>> {
-        try!(assert_toml(file));
-        parse_toml_file(file).and_then(|toml| {
-            toml.get("clean")
-                .ok_or(vec![BuildError::NoCleanDesc])
-                .and_then(|desc| {
-                    Decodable::decode(&mut toml::Decoder::new(desc.clone()))
-                        .map_err(|err| vec![BuildError::TomlDecode(err)])
-                })
-        })
-    }
 }
 
 // Structure for describing a package to be built
@@ -179,26 +163,9 @@ pub struct PackageDesc {
 }
 
 impl PackageDesc {
-    pub fn from_toml_table(table: toml::Value) -> Result<PackageDesc, BuildError> {
-        Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
-    }
-
     // Creates a new blank BuldFile
     pub fn new() -> PackageDesc {
         Default::default()
-    }
-
-    // Creates a BuldFile struct from a TOML file
-    pub fn from_file(file: &str) -> Result<PackageDesc, Vec<BuildError>> {
-        try!(assert_toml(file));
-        parse_toml_file(file).and_then(|toml| {
-            toml.get("package")
-                .ok_or(vec![BuildError::NoBuildDesc])
-                .and_then(|desc| {
-                    Decodable::decode(&mut toml::Decoder::new(desc.clone()))
-                        .map_err(|err| vec![BuildError::TomlDecode(err)])
-                })
-        })
     }
 
     // Prints the PackageDesc's serialized TOML as pretty JSON
@@ -377,8 +344,7 @@ impl Builder for PackageDesc {
     }
 
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>> {
-        try!(Archive::new(try!(File::open(path))).unpack("build"));
-        Ok(())
+        Ok(try!(Archive::new(try!(File::open(path))).unpack("build")))
     }
 
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
@@ -468,6 +434,34 @@ impl PkgInfo {
     }
 }
 
+pub trait FromFile<T> {
+    fn from_file(file: &str, name: &str) -> Result<T, Vec<BuildError>>;
+}
+
+impl<T: Encodable + Decodable> FromFile<T> for T {
+    fn from_file(file: &str, name: &str) -> Result<T, Vec<BuildError>> {
+        try!(assert_toml(file));
+        parse_toml_file(file).and_then(|toml| {
+            toml.get(name)
+                .ok_or(vec![BuildError::NoDesc(name.to_owned())])
+                .and_then(|desc| {
+                    Decodable::decode(&mut toml::Decoder::new(desc.clone()))
+                        .map_err(|err| vec![BuildError::TomlDecode(err)])
+                })
+        })
+    }
+}
+
+pub trait FromTomlTable<T> {
+    fn from_toml_table(table: toml::Value) -> Result<T, BuildError>;
+}
+
+impl<T: Encodable + Decodable> FromTomlTable<T> for T {
+    fn from_toml_table(table: toml::Value) -> Result<T, BuildError> {
+        Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
+    }
+}
+
 #[test]
 fn test_default_arch() {
     let system_arch = env::consts::ARCH;
@@ -532,7 +526,7 @@ fn test_new_empty_pkgdesc() {
 #[test]
 #[should_panic]
 fn test_pkgdesc_from_file_fail() {
-    let build_file = match PackageDesc::from_file("none.toml") {
+    let build_file = match PackageDesc::from_file("none.toml", "package") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
     };
@@ -541,7 +535,7 @@ fn test_pkgdesc_from_file_fail() {
 
 #[test]
 fn test_pkgdesc_from_file_success() {
-    let build_file = match PackageDesc::from_file("example/tar/PKG.toml") {
+    let build_file = match PackageDesc::from_file("example/tar/PKG.toml", "package") {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
     };
@@ -550,7 +544,7 @@ fn test_pkgdesc_from_file_success() {
 
 #[test]
 fn test_pkgdesc_from_toml_table_success() {
-    let test_desc = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
+    let test_desc = PackageDesc::from_file("example/tar/PKG.toml", "package").unwrap();
     if let Ok(toml) = parse_toml_file("example/tar/PKG.toml") {
         if let Some(pkg) = toml.get("package") {
             let desc = PackageDesc::from_toml_table(pkg.clone()).unwrap();
@@ -561,13 +555,13 @@ fn test_pkgdesc_from_toml_table_success() {
 
 #[test]
 fn test_pkgdesc_print_json() {
-    let build_file = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/tar/PKG.toml", "package").unwrap();
     build_file.print_json();
 }
 
 #[test]
 fn test_new_empty_pkginfo() {
-    let build_file = PackageDesc::from_file("example/tar/PKG.toml").unwrap();
+    let build_file = PackageDesc::from_file("example/tar/PKG.toml", "package").unwrap();
     let info = PkgInfo::new(&build_file);
     assert_eq!(info.name, build_file.name.unwrap_or("Unknown".to_owned()));
 }
