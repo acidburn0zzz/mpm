@@ -109,33 +109,12 @@ impl CleanDesc {
         Default::default()
     }
 
-    pub fn exec(&self) -> Result<(), Box<error::Error>> {
+    pub fn clean(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Cleaning build environment".bold());
-        for line in &self.script.clone().unwrap_or(vec!["".to_string()]) {
-            // Parse a line of commands from toml
-            let parsed_line: Vec<&str> = line.split(' ').collect();
-            if let Some(s) = parsed_line.split_first() {
-                let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                let status = try!(command.wait());
-                if let Some(child_output) = command.stdout.as_mut() {
-                    // Child process has output
-                    println!("{}", try!(child_output.read(&mut Vec::new())));
-                };
-                if let Some(code) = status.code() {
-                    if code != 0 {
-                        println!("'{}' terminated with code '{}'",
-                                 s.0.bold(),
-                                 code.to_string().bold());
-                    }
-                };
-            }
-        }
+        if let Some(script) = self.script.clone() {
+            try!(self.exec(script));
+        };
         Ok(println!("{}", "Clean succeeded".bold()))
-    }
-
-    // Prints the PackageDesc's serialized TOML as pretty JSON
-    pub fn print_json(&self) {
-        println!("{}", json::as_pretty_json(&self));
     }
 }
 
@@ -168,11 +147,6 @@ impl PackageDesc {
         Default::default()
     }
 
-    // Prints the PackageDesc's serialized TOML as pretty JSON
-    pub fn print_json(&self) {
-        println!("{}", json::as_pretty_json(&self));
-    }
-
     pub fn set_builddate(&mut self) -> Result<(), Box<error::Error>> {
         match time::strftime("%m%d%Y%H%M%S", &time::now_utc()) {
             Ok(s) => self.builddate = Some(s),
@@ -196,7 +170,6 @@ pub trait Builder {
     fn build(&self) -> Result<(), Box<error::Error>>;
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
-    fn handle_status(&self, cmd: &str, code: Option<i32>);
     fn handle_source(&self) -> Result<(), Box<error::Error>>;
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError>;
     fn web_get(&self, url: &str) -> Result<(), Box<error::Error>>;
@@ -253,7 +226,11 @@ impl Builder for PackageDesc {
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>> {
         let mut current_dir = try!(env::current_dir());
         let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
-        tar_name.push_str(&format!("-{:?}", self.arch.clone().unwrap().first().unwrap()));
+        if let Some(arch) = self.arch.clone() {
+            if let Some(first) = arch.first() {
+                tar_name.push_str(&format!("-{:?}", first));
+            };
+        };
         tar_name.push_str(".pkg.tar");
         current_dir.push(&tar_name);
         Ok((try!(File::create(current_dir)), tar_name))
@@ -297,16 +274,6 @@ impl Builder for PackageDesc {
     // This should ideally create a build environment from PKG.toml
     fn set_env(&self) -> io::Result<()> {
         unimplemented!();
-    }
-
-    fn handle_status(&self, cmd: &str, code: Option<i32>) {
-        if let Some(status) = code {
-            if status != 0 {
-                println!("'{}' terminated with code '{}'",
-                         cmd.bold(),
-                         status.to_string().bold());
-            }
-        };
     }
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
@@ -356,23 +323,11 @@ impl Builder for PackageDesc {
             })
     }
 
-
     fn build(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Beginning package build".bold());
-        for line in self.build.clone().unwrap() {
-            // Parse a line of commands from toml
-            let parsed_line: Vec<&str> = line.split(' ').collect();
-            if let Some(s) = parsed_line.split_first() {
-                let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                let status = try!(command.wait());
-                if let Some(child_output) = command.stdout.as_mut() {
-                    // Child process has output
-                    let mut buff = String::new();
-                    println!("{}", try!(child_output.read_to_string(&mut buff)));
-                };
-                &self.handle_status(s.0, status.code());
-            };
-        }
+        if let Some(script) = self.build.clone() {
+            try!(self.exec(script));
+        };
         Ok(println!("{}", "Build succeeded".bold()))
     }
 
@@ -419,10 +374,6 @@ impl PkgInfo {
         return info;
     }
 
-    pub fn print_json(&self) {
-        println!("{}", json::as_pretty_json(&self));
-    }
-
     pub fn update_size(&mut self, build_file: &PackageDesc) {
         self.size = build_file.pkg_size().unwrap_or(0);
     }
@@ -434,11 +385,14 @@ impl PkgInfo {
     }
 }
 
-pub trait FromFile<T> {
+pub trait Desc<T> {
     fn from_file(file: &str, name: &str) -> Result<T, Vec<BuildError>>;
+    fn from_toml_table(table: toml::Value) -> Result<T, BuildError>;
+    fn exec(&self, script: Vec<String>) -> Result<(), Box<error::Error>>;
+    fn print_json(&self);
 }
 
-impl<T: Encodable + Decodable> FromFile<T> for T {
+impl<T: Encodable + Decodable> Desc<T> for T {
     fn from_file(file: &str, name: &str) -> Result<T, Vec<BuildError>> {
         try!(assert_toml(file));
         parse_toml_file(file).and_then(|toml| {
@@ -450,15 +404,37 @@ impl<T: Encodable + Decodable> FromFile<T> for T {
                 })
         })
     }
-}
 
-pub trait FromTomlTable<T> {
-    fn from_toml_table(table: toml::Value) -> Result<T, BuildError>;
-}
-
-impl<T: Encodable + Decodable> FromTomlTable<T> for T {
     fn from_toml_table(table: toml::Value) -> Result<T, BuildError> {
         Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
+    }
+
+    fn exec(&self, script: Vec<String>) -> Result<(), Box<error::Error>> {
+        for line in script {
+            // Parse a line of commands from toml
+            let parsed_line: Vec<&str> = line.split(' ').collect();
+            if let Some(s) = parsed_line.split_first() {
+                let mut command = try!(Command::new(s.0).args(s.1).spawn());
+                let status = try!(command.wait());
+                if let Some(child_output) = command.stdout.as_mut() {
+                    // Child process has output
+                    let mut buff = String::new();
+                    println!("{}", try!(child_output.read_to_string(&mut buff)));
+                };
+                if let Some(code) = status.code() {
+                    if code != 0 {
+                        println!("'{}' terminated with code '{}'",
+                                 s.0.bold(),
+                                 code.to_string().bold());
+                    }
+                };
+            };
+        }
+        Ok(())
+    }
+
+    fn print_json(&self) {
+        println!("{}", json::as_pretty_json(&self));
     }
 }
 

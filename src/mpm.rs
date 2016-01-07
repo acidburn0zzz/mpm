@@ -75,7 +75,7 @@ fn main() {
         for item in matches.free {
             match CleanDesc::from_file(&*item, "clean") {
                 Ok(clean) => {
-                    if let Err(e) = clean.exec() {
+                    if let Err(e) = clean.clean() {
                         MPM.error(e.to_string(), ExitStatus::Error);
                     }
                 }
