@@ -42,8 +42,12 @@ impl fmt::Display for BuildError {
             BuildError::NonToml(ref file) => write!(f, "'{}' is not a toml file", file),
             BuildError::NoDesc(ref name) => write!(f, "no '{}' section found in PKG.toml", name),
             BuildError::CmdParse => write!(f, "command parse error"),
-            BuildError::HttpNoFile(ref status_code, ref url)  => write!(f, "HTTP: {} from '{}'", status_code, url),
-            BuildError::HashMismatch(ref file, ref hash) => write!(f, "hash mismatch: '{}' : '{}'", file, hash),
+            BuildError::HttpNoFile(ref status_code, ref url) => {
+                write!(f, "HTTP: {} from '{}'", status_code, url)
+            }
+            BuildError::HashMismatch(ref file, ref hash) => {
+                write!(f, "hash mismatch: '{}' : '{}'", file, hash)
+            }
         }
     }
 }

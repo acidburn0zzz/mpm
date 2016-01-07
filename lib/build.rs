@@ -111,7 +111,7 @@ impl CleanDesc {
 
     pub fn clean(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Cleaning build environment".bold());
-        if let Some(script) = self.script.clone() {
+        if let Some(script) = self.script.as_ref() {
             try!(self.exec(script));
         };
         Ok(println!("{}", "Clean succeeded".bold()))
@@ -199,13 +199,13 @@ impl Builder for PackageDesc {
     fn match_hash(&self, tar: &str) -> Result<(), Box<error::Error>> {
         if self.sha512.is_some() {
             let hash = try!(self.sha_512(&tar));
-            if !self.sha512.clone().unwrap().contains(&hash) {
-                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)))
+            if !self.sha512.as_ref().unwrap().contains(&hash) {
+                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)));
             }
         } else if self.sha256.is_some() {
             let hash = try!(self.sha_256(&tar));
-            if !self.sha256.clone().unwrap().contains(&hash) {
-                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)))
+            if !self.sha256.as_ref().unwrap().contains(&hash) {
+                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)));
             }
         }
         Ok(())
@@ -277,12 +277,12 @@ impl Builder for PackageDesc {
     }
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
-        if let Some(source) = self.source.clone() {
+        if let Some(source) = self.source.as_ref() {
             for item in source {
                 let pos = item.find('+').unwrap_or(item.len());
                 let (cvs, url) = item.split_at(pos);
                 if cvs == "git" {
-                    try!(self.clone_repo(&url.replace("+","")));
+                    try!(self.clone_repo(&url.replace("+", "")));
                 } else {
                     try!(self.web_get(cvs));
                     if let Some(file_name) = cvs.rsplit('/').nth(0) {
@@ -325,7 +325,7 @@ impl Builder for PackageDesc {
 
     fn build(&self) -> Result<(), Box<error::Error>> {
         println!("{}", "Beginning package build".bold());
-        if let Some(script) = self.build.clone() {
+        if let Some(script) = self.build.as_ref() {
             try!(self.exec(script));
         };
         Ok(println!("{}", "Build succeeded".bold()))
@@ -388,7 +388,7 @@ impl PkgInfo {
 pub trait Desc<T> {
     fn from_file(file: &str, name: &str) -> Result<T, Vec<BuildError>>;
     fn from_toml_table(table: toml::Value) -> Result<T, BuildError>;
-    fn exec(&self, script: Vec<String>) -> Result<(), Box<error::Error>>;
+    fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>>;
     fn print_json(&self);
 }
 
@@ -409,7 +409,7 @@ impl<T: Encodable + Decodable> Desc<T> for T {
         Ok(try!(Decodable::decode(&mut toml::Decoder::new(table))))
     }
 
-    fn exec(&self, script: Vec<String>) -> Result<(), Box<error::Error>> {
+    fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
         for line in script {
             // Parse a line of commands from toml
             let parsed_line: Vec<&str> = line.split(' ').collect();
