@@ -125,7 +125,6 @@ pub struct PackageDesc {
     build: Option<Vec<String>>,
     builddate: Option<String>,
     desc: Option<String>,
-    prefix: Option<String>,
     package: Option<Vec<String>>,
     makedeps: Option<Vec<String>>,
     deps: Option<Vec<String>>,
@@ -431,12 +430,10 @@ impl<T: Encodable + Decodable> Desc<T> for T {
 
     fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
         for line in script {
-            let mut command = try!(
-                Command::new("sh")
-                    .arg("-c")
-                    .arg(line)
-                    .spawn()
-                );
+            let mut command = try!(Command::new("sh")
+                                       .arg("-c")
+                                       .arg(line)
+                                       .spawn());
             let status = try!(command.wait());
             if let Some(child_output) = command.stdout.as_mut() {
                 // Child process has output
