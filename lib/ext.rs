@@ -37,7 +37,7 @@ pub fn assert_toml(file: &str) -> Result<(), BuildError> {
 pub fn strip_parent(path: PathBuf) -> PathBuf {
     let mut new_path = PathBuf::new();
     for component in path.components() {
-        if component.as_ref() != "build" {
+        if component.as_ref() != "pkg" {
             new_path.push(component.as_ref());
         }
     }

@@ -13,7 +13,6 @@ use error::BuildError;
 
 use std::env;
 use std::fs;
-use std::io;
 use std::error;
 use std::process::Command;
 use std::fs::File;
@@ -165,9 +164,10 @@ pub trait Builder {
     // Creates a tar file
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>>;
     // Sets the build environment for the package
-    fn set_env(&self) -> io::Result<()>;
+    fn set_env(&self) -> Result<(), Box<error::Error>>;
     // Builds pacakge
     fn build(&self) -> Result<(), Box<error::Error>>;
+    fn package(&self) -> Result<(), Box<error::Error>>;
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
     fn handle_source(&self) -> Result<(), Box<error::Error>>;
@@ -238,15 +238,18 @@ impl Builder for PackageDesc {
 
     // Creates a package tarball
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
+        let current_dir = try!(env::current_dir());
+        try!(self.set_env());
         try!(self.handle_source());
-        let tar = try!(self.create_tar_file());
-        try!(env::set_current_dir("build"));
         try!(self.build());
-        let archive = Archive::new(tar.0);
+        try!(self.package());
         try!(self.set_builddate());
-        try!(PkgInfo::new(&self).write("build/PKGINFO"));
+        try!(env::set_current_dir(current_dir));
+        try!(PkgInfo::new(&self).write("pkg/PKGINFO"));
+        let tar = try!(self.create_tar_file());
+        let archive = Archive::new(tar.0);
         print!("{}", "Compressing package..".bold());
-        for entry in WalkDir::new("build") {
+        for entry in WalkDir::new("pkg") {
             let entry = try!(entry);
             let file_name = strip_parent(entry.path().to_path_buf());
             let metadata = try!(fs::metadata(entry.path()));
@@ -254,7 +257,7 @@ impl Builder for PackageDesc {
                 let mut file = try!(File::open(entry.path()));
                 try!(archive.append_file(file_name, &mut file));
             } else if metadata.is_dir() {
-                if entry.path() != "build".as_path() {
+                if entry.path() != "pkg".as_path() {
                     try!(archive.append_dir(file_name, entry.path()));
                 }
             }
@@ -271,9 +274,17 @@ impl Builder for PackageDesc {
                     "successfully built".bold()))
     }
 
-    // This should ideally create a build environment from PKG.toml
-    fn set_env(&self) -> io::Result<()> {
-        unimplemented!();
+    fn set_env(&self) -> Result<(), Box<error::Error>> {
+        let current_dir = try!(env::current_dir());
+        let mut pkg_dir = current_dir.clone();
+        let mut src_dir = current_dir.clone();
+        pkg_dir.push("pkg");
+        src_dir.push("src");
+        try!(fs::create_dir(&pkg_dir));
+        env::set_var("pkg_dir", pkg_dir);
+        // Don't create src_dir since it should be created by 'handle_source'
+        env::set_var("src_dir", src_dir);
+        Ok(())
     }
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
@@ -311,11 +322,11 @@ impl Builder for PackageDesc {
     }
 
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>> {
-        Ok(try!(Archive::new(try!(File::open(path))).unpack("build")))
+        Ok(try!(Archive::new(try!(File::open(path))).unpack("src")))
     }
 
     fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
-        Repository::clone(url, "build")
+        Repository::clone(url, "src")
             .map_err(|err| BuildError::Git(err))
             .map(|repo| {
                 println!("{} {}", "Cloning".bold(), url.bold());
@@ -324,18 +335,27 @@ impl Builder for PackageDesc {
     }
 
     fn build(&self) -> Result<(), Box<error::Error>> {
-        println!("{}", "Beginning package build".bold());
+        try!(env::set_current_dir("src"));
+        println!("{}", "Beginning build".bold());
         if let Some(script) = self.build.as_ref() {
             try!(self.exec(script));
         };
         Ok(println!("{}", "Build succeeded".bold()))
     }
 
+    fn package(&self) -> Result<(), Box<error::Error>> {
+        println!("{}", "Beginning package".bold());
+        if let Some(script) = self.package.as_ref() {
+            try!(self.exec(script));
+        };
+        Ok(println!("{}", "Package succeeded".bold()))
+    }
+
     fn pkg_size(&self) -> Result<u64, BuildError> {
         let mut size: u64 = 0;
-        for entry in WalkDir::new("build") {
+        for entry in WalkDir::new("pkg") {
             let entry = try!(entry);
-            if entry.path() != "build".as_path() {
+            if entry.path() != "pkg".as_path() {
                 match fs::metadata(entry.path()) {
                     Ok(s) => size += s.len(),
                     Err(e) => return Err(BuildError::Io(e)),
@@ -411,23 +431,24 @@ impl<T: Encodable + Decodable> Desc<T> for T {
 
     fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
         for line in script {
-            // Parse a line of commands from toml
-            let parsed_line: Vec<&str> = line.split(' ').collect();
-            if let Some(s) = parsed_line.split_first() {
-                let mut command = try!(Command::new(s.0).args(s.1).spawn());
-                let status = try!(command.wait());
-                if let Some(child_output) = command.stdout.as_mut() {
-                    // Child process has output
-                    let mut buff = String::new();
-                    println!("{}", try!(child_output.read_to_string(&mut buff)));
-                };
-                if let Some(code) = status.code() {
-                    if code != 0 {
-                        println!("'{}' terminated with code '{}'",
-                                 s.0.bold(),
-                                 code.to_string().bold());
-                    }
-                };
+            let mut command = try!(
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(line)
+                    .spawn()
+                );
+            let status = try!(command.wait());
+            if let Some(child_output) = command.stdout.as_mut() {
+                // Child process has output
+                let mut buff = String::new();
+                println!("{}", try!(child_output.read_to_string(&mut buff)));
+            };
+            if let Some(code) = status.code() {
+                if code != 0 {
+                    println!("'{}' terminated with code '{}'",
+                             line.bold(),
+                             code.to_string().bold());
+                }
             };
         }
         Ok(())

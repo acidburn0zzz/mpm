@@ -14,12 +14,17 @@ prefix = "/usr"
 conflicts = ["test-git"]
 source = ["git+http://github.com/0X1A/hello-mpm"]
 build = [
+	'cd $src_dir',
 	'make',
-	'make DEST=build install'
+]
+package = [
+	'make DEST=$pkg_dir install'
 ]
 
 [clean]
 script = [
-	'rm hello-mpm-x86_64.pkg.tar',
-	'rm -r build',
+	'rm -v hello-mpm.tar.gz',
+	'rm -v hello-mpm-x86_64.pkg.tar',
+	'rm -rfv src',
+	'rm -rv pkg',
 ]

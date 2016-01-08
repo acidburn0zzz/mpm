@@ -15,13 +15,17 @@ conflicts = ["test-git"]
 source = ["https://github.com/0X1A/hello-mpm/releases/download/0.0.0/hello-mpm.tar.gz"]
 sha512 = ["4c62cf269ddbe5eed11d01061287dd1c2be5df36b649e5bc823d68b1437f7680d6776f9c6dc183bd7ea704fab3ce9518631f0b0e1ff397b25c77bf3f5b95e8f0"]
 build = [
+	'cd $src_dir',
 	'make',
-	'make DEST=build install'
+]
+package = [
+	'make DEST=$pkg_dir install'
 ]
 
 [clean]
 script = [
 	'rm -v hello-mpm.tar.gz',
 	'rm -v hello-mpm-x86_64.pkg.tar',
-	'rm -rv build',
+	'rm -rv src',
+	'rm -rv pkg',
 ]
