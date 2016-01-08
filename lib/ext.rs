@@ -93,7 +93,7 @@ pub fn convert(toml: toml::Value) -> Json {
 
 #[test]
 fn test_strip_parent() {
-    let test_path = PathBuf::from("test/build/dir");
+    let test_path = PathBuf::from("test/pkg/dir");
     assert_eq!(strip_parent(test_path), PathBuf::from("test/dir"));
 }
 
