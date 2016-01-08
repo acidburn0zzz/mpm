@@ -429,8 +429,9 @@ impl<T: Encodable + Decodable> Desc<T> for T {
     }
 
     fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
+        let shell = env!("SHELL");
         for line in script {
-            let mut command = try!(Command::new("sh")
+            let mut command = try!(Command::new(shell)
                                        .arg("-c")
                                        .arg(line)
                                        .spawn());
