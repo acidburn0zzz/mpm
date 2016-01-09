@@ -1,0 +1,29 @@
+[package]
+maintainers = [ "Alberto Corona <ac@albertocorona.com>" ]
+desc = "A binary package manager"
+name = "mpm"
+vers = "0.0.1"
+rel = "1"
+arch = [""]
+url = "https://github.com/0X1A/mpm"
+license = "BSD"
+makedeps = ["rust", "carg", "git"]
+deps = [ ]
+provides = "mpm"
+conflicts = ["mpm-git"]
+source = ["git+http://github.com/0X1A/mpm"]
+build = [
+	'cd $src_dir',
+	'cargo build -j2 --release --verbose',
+]
+package = [
+	'install -d $pkg_dir/usr/bin',
+	'install $src_dir/target/release/mpm $pkg_dir/usr/bin',
+]
+
+[clean]
+script = [
+	'rm -v mpm-x86_64.pkg.tar',
+	'rm -rfv src',
+	'rm -rv pkg',
+]
