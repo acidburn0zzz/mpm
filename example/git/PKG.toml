@@ -10,7 +10,6 @@ license = "BSD"
 makedeps = ["make", "git"]
 deps = [ ]
 provides = "test"
-prefix = "/usr"
 conflicts = ["test-git"]
 source = ["git+http://github.com/0X1A/hello-mpm"]
 build = [
