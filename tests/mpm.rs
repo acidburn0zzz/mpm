@@ -66,3 +66,27 @@ fn test_mpm_build_clean_git() {
     assert_eq!(build.status.success(), true);
     assert_eq!(clean.status.success(), true);
 }
+
+#[test]
+fn test_mpm_build_clean_self() {
+    let mpm_path = mpm_path();
+    println!("{}", mpm_path);
+    let build = Command::new(&mpm_path)
+                        .arg("-b")
+                        .arg("PKG.toml")
+                        .current_dir("example/mpm-git")
+                        .output()
+                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+    println!("{}", String::from_utf8_lossy(&build.stdout));
+
+    let clean = Command::new(&mpm_path)
+                        .arg("-c")
+                        .arg("PKG.toml")
+                        .current_dir("example/mpm-git")
+                        .output()
+                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+    println!("{}", String::from_utf8_lossy(&clean.stdout));
+
+    assert_eq!(build.status.success(), true);
+    assert_eq!(clean.status.success(), true);
+}
