@@ -122,6 +122,7 @@ impl CleanDesc {
 pub struct PackageDesc {
     name: Option<String>,
     vers: Option<String>,
+    rel: Option<String>,
     build: Option<Vec<String>>,
     builddate: Option<String>,
     desc: Option<String>,
@@ -283,6 +284,11 @@ impl Builder for PackageDesc {
         env::set_var("pkg_dir", pkg_dir);
         // Don't create src_dir since it should be created by 'handle_source'
         env::set_var("src_dir", src_dir);
+        if let Some(pkg_vers) = self.vers.as_ref() {
+            env::set_var("pkg_vers", pkg_vers);
+        } if let Some(pkg_rel) = self.rel.as_ref() {
+            env::set_var("pkg_rel", pkg_rel);
+        };
         Ok(())
     }
 
@@ -292,7 +298,9 @@ impl Builder for PackageDesc {
                 let pos = item.find('+').unwrap_or(item.len());
                 let (cvs, url) = item.split_at(pos);
                 if cvs == "git" {
-                    try!(self.clone_repo(&url.replace("+", "")));
+                    let url = url.replace("+", "");
+                    println!("{} {}", "Cloning".bold(), &url.bold());
+                    try!(self.clone_repo(&url));
                 } else {
                     try!(self.web_get(cvs));
                     if let Some(file_name) = cvs.rsplit('/').nth(0) {
