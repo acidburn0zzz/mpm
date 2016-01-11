@@ -5,10 +5,8 @@ extern crate rpf;
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::prelude::*;
-use rpf::*;
 
-use toml::Value;
-use rustc_serialize::json::Json;
+use rpf::*;
 use std::fs;
 use error::BuildError;
 
@@ -74,23 +72,6 @@ pub fn parse_toml_file<T: AsRef<Path>>(file: T) -> Result<toml::Table, Vec<Build
     };
 }
 
-// Converts a given toml value to json
-pub fn convert(toml: toml::Value) -> Json {
-    match toml {
-        Value::String(s) => Json::String(s),
-        Value::Integer(i) => Json::I64(i),
-        Value::Float(f) => Json::F64(f),
-        Value::Boolean(b) => Json::Boolean(b),
-        Value::Array(a) => Json::Array(a.into_iter().map(convert).collect()),
-        Value::Table(t) => {
-            Json::Object(t.into_iter()
-                          .map(|(k, v)| (k, convert(v)))
-                          .collect())
-        }
-        Value::Datetime(d) => Json::String(d),
-    }
-}
-
 #[test]
 fn test_strip_parent() {
     let test_path = PathBuf::from("test/pkg/dir");
@@ -103,13 +84,4 @@ fn test_parse_toml_file() {
     let table_from_file = parse_toml_file("example/PKG.toml").unwrap();
     let toml_table = toml::Table::new();
     assert_eq!(table_from_file, toml_table);
-}
-
-#[test]
-fn test_convert() {
-    let toml = "foo = 'bar'";
-    let val: toml::Value = toml.parse().unwrap();
-    let json_from_toml = convert(val);
-    let encoded_json = Json::from_str("{\"foo\": \"bar\"}").unwrap();
-    assert_eq!(json_from_toml, encoded_json);
 }
