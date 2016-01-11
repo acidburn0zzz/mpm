@@ -56,10 +56,12 @@ fn main() {
         }
     } else if matches.opt_present("b") {
         for item in matches.free {
-            match PackageDesc::from_file(&*item, "package") {
-                Ok(mut package) => {
-                    if let Err(e) = package.create_pkg() {
-                        MPM.error(e.to_string(), ExitStatus::Error);
+            match PackageBuild::from_file(&*item) {
+                Ok(pkg_build) => {
+                    if let Some(mut package) = pkg_build.package() {
+                        if let Err(e) = package.create_pkg() {
+                            MPM.error(e.to_string(), ExitStatus::Error);
+                        };
                     };
                 }
                 Err(e) => {
@@ -73,11 +75,16 @@ fn main() {
         }
     } else if matches.opt_present("c") {
         for item in matches.free {
-            match CleanDesc::from_file(&*item, "clean") {
-                Ok(clean) => {
-                    if let Err(e) = clean.clean() {
-                        MPM.error(e.to_string(), ExitStatus::Error);
-                    }
+            match PackageBuild::from_file(&*item) {
+                Ok(pkg_build) => {
+                    if let Some(package) = pkg_build.clone().package() {
+                        package.set_env().unwrap();
+                    };
+                    if let Some(clean) = pkg_build.clone().clean() {
+                        if let Err(e) = clean.clean() {
+                            MPM.error(e.to_string(), ExitStatus::Error);
+                        };
+                    };
                 }
                 Err(e) => {
                     for error in e {
