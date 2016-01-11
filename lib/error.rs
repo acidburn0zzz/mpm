@@ -23,7 +23,6 @@ pub enum BuildError {
     Hyper(hyper::error::Error),
     NonToml(String),
     NoDesc(String),
-    CmdParse,
     HttpNoFile(hyper::status::StatusCode, String),
     HashMismatch(String, String),
 }
@@ -41,7 +40,6 @@ impl fmt::Display for BuildError {
             BuildError::Hyper(ref err) => write!(f, "hyper error {}", err),
             BuildError::NonToml(ref file) => write!(f, "'{}' is not a toml file", file),
             BuildError::NoDesc(ref name) => write!(f, "no '{}' section found in PKG.toml", name),
-            BuildError::CmdParse => write!(f, "command parse error"),
             BuildError::HttpNoFile(ref status_code, ref url) => {
                 write!(f, "HTTP: {} from '{}'", status_code, url)
             }
@@ -65,7 +63,6 @@ impl Error for BuildError {
             BuildError::Hyper(ref err) => err.description(),
             BuildError::NonToml(..) => "toml file error",
             BuildError::NoDesc(..) => "no 'package' nor 'clean' section found in PKG.toml",
-            BuildError::CmdParse => "command parse error",
             BuildError::HttpNoFile(..) => "http file error",
             BuildError::HashMismatch(..) => "hash mismatch",
         }
@@ -83,7 +80,6 @@ impl Error for BuildError {
             BuildError::Hyper(ref err) => Some(err),
             BuildError::NonToml(..) => None,
             BuildError::NoDesc(..) => None,
-            BuildError::CmdParse => None,
             BuildError::HttpNoFile(..) => None,
             BuildError::HashMismatch(..) => None,
         }
