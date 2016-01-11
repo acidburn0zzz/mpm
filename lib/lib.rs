@@ -9,5 +9,6 @@ extern crate hyper;
 extern crate crypto;
 
 pub mod build;
-pub mod ext;
-pub mod error;
+mod ext;
+mod error;
+mod repo;
