@@ -4,12 +4,12 @@ extern crate rpf;
 extern crate tar;
 extern crate time;
 extern crate walkdir;
-extern crate git2;
 extern crate hyper;
 extern crate crypto;
 
 use ext::{parse_toml_file, strip_parent, assert_toml};
 use error::BuildError;
+use repo::clone_repo;
 
 use std::env;
 use std::fs;
@@ -25,7 +25,6 @@ use tar::Archive;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use rustc_serialize::json;
 use walkdir::WalkDir;
-use git2::Repository;
 use hyper::client::Client;
 use crypto::sha2;
 use crypto::digest::Digest;
@@ -54,7 +53,7 @@ impl Default for Arch {
     }
 }
 
-#[derive(Debug,Default,PartialEq)]
+#[derive(Debug,Default,PartialEq,Clone)]
 pub struct PackageBuild {
     package: Option<PackageDesc>,
     clean: Option<CleanDesc>,
@@ -98,7 +97,7 @@ impl PackageBuild {
     }
 }
 
-#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Clone)]
 pub struct CleanDesc {
     script: Option<Vec<String>>,
 }
@@ -118,7 +117,7 @@ impl CleanDesc {
 }
 
 // Structure for describing a package to be built
-#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Clone)]
 pub struct PackageDesc {
     name: Option<String>,
     vers: Option<String>,
@@ -157,7 +156,6 @@ impl PackageDesc {
 
 // Trait for performing a build
 pub trait Builder {
-    fn assign_host_arch(&mut self);
     // Creates a package from tar file
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>>;
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>>;
@@ -165,61 +163,55 @@ pub trait Builder {
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>>;
     // Sets the build environment for the package
     fn set_env(&self) -> Result<(), Box<error::Error>>;
-    // Builds pacakge
+    fn create_dirs(&self) -> Result<(), Box<error::Error>>;
+    // Builds package
     fn build(&self) -> Result<(), Box<error::Error>>;
+    // Installs to `pkg` dir
     fn package(&self) -> Result<(), Box<error::Error>>;
     // Gets size of directory before packaging
     fn pkg_size(&self) -> Result<u64, BuildError>;
+    // Decides what to do for `source`
     fn handle_source(&self) -> Result<(), Box<error::Error>>;
-    fn clone_repo(&self, url: &str) -> Result<Repository, BuildError>;
+    // Get sources from web, anything that is not prepended with 'git+' for
+    // source is assumped to be a downloadable file
     fn web_get(&self, url: &str) -> Result<(), Box<error::Error>>;
-    fn sha_512(&self, tar: &str) -> Result<String, Box<error::Error>>;
-    fn sha_256(&self, tar: &str) -> Result<String, Box<error::Error>>;
-    fn match_hash(&self, tar: &str) -> Result<(), Box<error::Error>>;
+    // Computres 512 bit SHA2 hash for a file
+    fn sha_512(&self, file: &str) -> Result<String, Box<error::Error>>;
+    // Computres 256 bit SHA2 hash for a file
+    fn sha_256(&self, file: &str) -> Result<String, Box<error::Error>>;
+    fn match_hash(&self, file: &str) -> Result<(), Box<error::Error>>;
 }
 
-
 impl Builder for PackageDesc {
-    fn sha_512(&self, tar: &str) -> Result<String, Box<error::Error>> {
+    fn sha_512(&self, file: &str) -> Result<String, Box<error::Error>> {
         let mut hasher = sha2::Sha512::new();
         let mut buffer = Vec::new();
-        try!(try!(File::open(tar)).read_to_end(&mut buffer));
+        try!(try!(File::open(file)).read_to_end(&mut buffer));
         hasher.input(&buffer);
         Ok(hasher.result_str())
     }
 
-    fn sha_256(&self, tar: &str) -> Result<String, Box<error::Error>> {
+    fn sha_256(&self, file: &str) -> Result<String, Box<error::Error>> {
         let mut hasher = sha2::Sha256::new();
         let mut buffer = Vec::new();
-        try!(try!(File::open(tar)).read_to_end(&mut buffer));
+        try!(try!(File::open(file)).read_to_end(&mut buffer));
         hasher.input(&buffer);
         Ok(hasher.result_str())
     }
 
-    fn match_hash(&self, tar: &str) -> Result<(), Box<error::Error>> {
+    fn match_hash(&self, file: &str) -> Result<(), Box<error::Error>> {
         if self.sha512.is_some() {
-            let hash = try!(self.sha_512(&tar));
+            let hash = try!(self.sha_512(&file));
             if !self.sha512.as_ref().unwrap().contains(&hash) {
-                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)));
+                return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         } else if self.sha256.is_some() {
-            let hash = try!(self.sha_256(&tar));
+            let hash = try!(self.sha_256(&file));
             if !self.sha256.as_ref().unwrap().contains(&hash) {
-                return Err(Box::new(BuildError::HashMismatch(tar.to_owned(), hash)));
+                return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         }
         Ok(())
-    }
-
-    fn assign_host_arch(&mut self) {
-        if self.arch.is_none() {
-            match env::consts::ARCH {
-                "x86_64" => self.arch = Some(vec![Arch::x86_64]),
-                "i686" => self.arch = Some(vec![Arch::i686]),
-                "arm" => self.arch = Some(vec![Arch::arm]),
-                _ => self.arch = Some(vec![Default::default()]),
-            }
-        }
     }
 
     // 'touches' a tarball file using the string in 'name' as a file name
@@ -227,9 +219,18 @@ impl Builder for PackageDesc {
         let mut current_dir = try!(env::current_dir());
         let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
         if let Some(arch) = self.arch.clone() {
-            if let Some(first) = arch.first() {
-                tar_name.push_str(&format!("-{:?}", first));
-            };
+            if let Some(pkg_vers) = self.vers.as_ref() {
+                if let Some(pkg_rel) = self.rel.as_ref() {
+                    if let Some(first) = arch.first() {
+                        tar_name.push_str(&format!("-{}-{}", pkg_vers, pkg_rel));
+                        tar_name.push_str(&format!("-{:?}", first));
+                    };
+                };
+            } else {
+                if let Some(first) = arch.first() {
+                    tar_name.push_str(&format!("-{:?}", first));
+                };
+            }
         };
         tar_name.push_str(".pkg.tar");
         current_dir.push(&tar_name);
@@ -280,16 +281,25 @@ impl Builder for PackageDesc {
         let mut src_dir = current_dir.clone();
         pkg_dir.push("pkg");
         src_dir.push("src");
-        try!(fs::create_dir(&pkg_dir));
         env::set_var("pkg_dir", pkg_dir);
-        // Don't create src_dir since it should be created by 'handle_source'
         env::set_var("src_dir", src_dir);
         if let Some(pkg_vers) = self.vers.as_ref() {
             env::set_var("pkg_vers", pkg_vers);
-        } if let Some(pkg_rel) = self.rel.as_ref() {
+        }
+        if let Some(pkg_rel) = self.rel.as_ref() {
             env::set_var("pkg_rel", pkg_rel);
         };
         Ok(())
+    }
+
+    fn create_dirs(&self) -> Result<(), Box<error::Error>> {
+        let current_dir = try!(env::current_dir());
+        let mut pkg_dir = current_dir.clone();
+        let mut src_dir = current_dir.clone();
+        pkg_dir.push("pkg");
+        src_dir.push("src");
+        // Don't create src_dir since it should be created by 'handle_source'
+        Ok(try!(fs::create_dir(&pkg_dir)))
     }
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
@@ -300,7 +310,7 @@ impl Builder for PackageDesc {
                 if cvs == "git" {
                     let url = url.replace("+", "");
                     println!("{} {}", "Cloning".bold(), &url.bold());
-                    try!(self.clone_repo(&url));
+                    try!(clone_repo(&url));
                 } else {
                     try!(self.web_get(cvs));
                     if let Some(file_name) = cvs.rsplit('/').nth(0) {
@@ -330,15 +340,6 @@ impl Builder for PackageDesc {
 
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>> {
         Ok(try!(Archive::new(try!(File::open(path))).unpack("src")))
-    }
-
-    fn clone_repo(&self, url: &str) -> Result<Repository, BuildError> {
-        Repository::clone(url, "src")
-            .map_err(|err| BuildError::Git(err))
-            .map(|repo| {
-                println!("{} {}", "Cloning".bold(), url.bold());
-                repo
-            })
     }
 
     fn build(&self) -> Result<(), Box<error::Error>> {
