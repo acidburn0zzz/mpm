@@ -23,7 +23,7 @@ package = [
 [clean]
 script = [
 	'rm -v hello-mpm.tar.gz',
-	'rm -v hello-mpm-x86_64.pkg.tar',
+	'rm -v hello-mpm-$pkg_vers-$pkg_rel-x86_64.pkg.tar',
 	'rm -rfv src',
 	'rm -rv pkg',
 ]

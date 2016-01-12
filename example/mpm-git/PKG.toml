@@ -14,11 +14,11 @@ conflicts = ["mpm-git"]
 source = ["git+http://github.com/0X1A/mpm"]
 build = [
 	'cd $src_dir',
-	'cargo build -j2 --release --verbose',
+	'cargo build -j2 --verbose',
 ]
 package = [
 	'install -d $pkg_dir/usr/bin',
-	'install $src_dir/target/release/mpm $pkg_dir/usr/bin',
+	'install $src_dir/target/debug/mpm $pkg_dir/usr/bin',
 ]
 
 [clean]
