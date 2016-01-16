@@ -8,11 +8,20 @@ mostly and primarily a side project, for fun.
 
 [**Get `cargo/rustc`**](https://www.rust-lang.org/downloads.html)
 
+## Contributing
+To file issues and pull requests please do so on the GitLab page for this
+project at: [https://gitlab.com/0X1A/mpm](https://gitlab.com/0X1A/mpm). All commits 
+are run through rustfmt before committing with no options passed.
+
+Get [`rust-fmt`](https://github.com/rust-lang-nursery/rustfmt)
+
 ## Current Status:
 - [x] Builds a thing
-	- [ ] Creates a proper build environment
+	- [x] Creates a proper build environment
 - [x] Packages a thing
 	- [ ] Includes metadata
+		- [x] Includes PKGINFO
+		- [ ] Includes MTREE
 	- [ ] Signed packages
 - [ ] Installs a thing
 
