@@ -17,7 +17,11 @@ use std::error;
 use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
 use toml::decode;
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 
 use rpf::*;
 use time::*;
@@ -241,12 +245,14 @@ impl Builder for PackageDesc {
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>> {
         let current_dir = try!(env::current_dir());
         try!(self.set_env());
+        try!(self.create_dirs());
         try!(self.handle_source());
         try!(self.build());
         try!(self.package());
         try!(self.set_builddate());
         try!(env::set_current_dir(current_dir));
         try!(PkgInfo::new(&self).write("pkg/PKGINFO"));
+        try!(try!(MTree::from_dir("pkg")).write("pkg/MTREE"));
         let tar = try!(self.create_tar_file());
         let archive = Archive::new(tar.0);
         print!("{}", "Compressing package..".bold());
@@ -299,7 +305,10 @@ impl Builder for PackageDesc {
         pkg_dir.push("pkg");
         src_dir.push("src");
         // Don't create src_dir since it should be created by 'handle_source'
-        Ok(try!(fs::create_dir(&pkg_dir)))
+        if !pkg_dir.exists() {
+            try!(fs::create_dir(&pkg_dir));
+        }
+        Ok(())
     }
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
@@ -375,6 +384,104 @@ impl Builder for PackageDesc {
 }
 
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+pub struct MTree {
+    entries: Vec<MTreeEntry>,
+}
+
+impl MTree {
+    fn new() -> MTree {
+        Default::default()
+    }
+
+    fn write(&self, path: &str) -> Result<(), BuildError> {
+        print!("{}", "Generating MTREE...".bold());
+        try!(try!(File::create(path)).write_all(&format!("{}", toml::encode(&self)).as_bytes()));
+        Ok(print!("{}\n", "OK".paint(Color::Green)))
+    }
+
+    fn add(&mut self, entry: MTreeEntry) {
+        self.entries.push(entry);
+    }
+
+    #[cfg(target_family = "unix")]
+    fn from_dir(path: &str) -> Result<MTree, BuildError> {
+        let mut mtree = MTree::new();
+        for entry in WalkDir::new(path) {
+            let entry = try!(entry);
+            if entry.path() != "pkg".as_path() {
+                let mut mtree_entry = MTreeEntry::new();
+                let file_name = strip_parent(entry.path().to_path_buf());
+                mtree_entry.set_path(file_name.as_str());
+                if !entry.path().is_dir() {
+                    try!(mtree_entry.set_checksum(entry.path().as_str()));
+                    try!(mtree_entry.set_size(entry.path().as_str()));
+                }
+                try!(mtree_entry.set_time());
+                try!(mtree_entry.set_mode(entry.path().as_str()));
+                mtree.add(mtree_entry);
+            }
+        }
+        Ok(mtree)
+    }
+}
+
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+pub struct MTreeEntry {
+    path: String,
+    time: String,
+    size: u64,
+    checksum: String,
+    mode: u32,
+}
+
+impl MTreeEntry {
+    fn new() -> MTreeEntry {
+        Default::default()
+    }
+
+    fn set_path(&mut self, path: &str) {
+        self.path = self.prepend_path(path);
+    }
+
+    fn set_time(&mut self) -> Result<(), BuildError> {
+        match time::strftime("%m%d%Y%H%M%S", &time::now_utc()) {
+            Ok(s) => self.time = s,
+            Err(e) => return Err(BuildError::Time(e)),
+        };
+        Ok(())
+    }
+
+    fn set_mode(&mut self, path: &str) -> Result<(), BuildError> {
+        let metadata = try!(fs::metadata(path));
+        self.mode = metadata.permissions().mode();
+        Ok(())
+    }
+
+    fn set_size(&mut self, path: &str) -> Result<(), BuildError> {
+        match fs::metadata(path) {
+            Ok(s) => self.size = s.len(),
+            Err(e) => return Err(BuildError::Io(e)),
+        };
+        Ok(())
+    }
+
+    fn set_checksum(&mut self, path: &str) -> Result<(), BuildError> {
+        let mut hasher = sha2::Sha256::new();
+        let mut buffer = Vec::new();
+        try!(try!(File::open(path)).read_to_end(&mut buffer));
+        hasher.input(&buffer);
+        Ok(self.checksum = hasher.result_str())
+    }
+
+    fn prepend_path(&self, path: &str) -> String {
+        let mut prepend: PathBuf =  PathBuf::from("./");
+        prepend.push(path);
+        prepend.as_string()
+    }
+
+}
+
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
 pub struct PkgInfo {
     name: String,
     vers: String,
@@ -408,7 +515,7 @@ impl PkgInfo {
 
     pub fn write(&self, path: &str) -> Result<(), BuildError> {
         print!("{}", "Generating PKGINFO...".bold());
-        try!(try!(File::create(path)).write_all(try!(json::encode(&self)).as_bytes()));
+        try!(try!(File::create(path)).write_all(&format!("{}", toml::encode(&self)).as_bytes()));
         Ok(print!("{}\n", "OK".paint(Color::Green)))
     }
 }
