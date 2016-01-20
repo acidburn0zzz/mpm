@@ -179,11 +179,13 @@ pub trait Builder {
     // Get sources from web, anything that is not prepended with 'git+' for
     // source is assumped to be a downloadable file
     fn web_get(&self, url: &str) -> Result<(), Box<error::Error>>;
-    // Computres 512 bit SHA2 hash for a file
+    // Checks for '://', returns true if found in 'url'
+    fn is_web_get(&self, url: &str) -> bool;
+    // Computes 512 bit SHA2 hash for a file
     fn sha_512(&self, file: &str) -> Result<String, Box<error::Error>>;
-    // Computres 256 bit SHA2 hash for a file
+    // Computes 256 bit SHA2 hash for a file
     fn sha_256(&self, file: &str) -> Result<String, Box<error::Error>>;
-    fn match_hash(&self, file: &str) -> Result<(), Box<error::Error>>;
+    fn match_hash(&self, index: usize, file: &str) -> Result<(), Box<error::Error>>;
 }
 
 impl Builder for PackageDesc {
@@ -203,15 +205,25 @@ impl Builder for PackageDesc {
         Ok(hasher.result_str())
     }
 
-    fn match_hash(&self, file: &str) -> Result<(), Box<error::Error>> {
+    fn match_hash(&self, index: usize, file: &str) -> Result<(), Box<error::Error>> {
         if self.sha512.is_some() {
+            if (index >= self.sha512.as_ref().unwrap().len()) ||
+                (self.sha512.as_ref().unwrap()[index].is_empty()) {
+                return Err(Box::new(BuildError::NoHash(file.to_owned())));
+            }
             let hash = try!(self.sha_512(&file));
-            if !self.sha512.as_ref().unwrap().contains(&hash) {
+            if (self.sha512.as_ref().unwrap()[index] != hash) &&
+                (self.sha512.as_ref().unwrap()[index] != "SKIP") {
                 return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         } else if self.sha256.is_some() {
+            if (index >= self.sha256.as_ref().unwrap().len()) ||
+                (self.sha256.as_ref().unwrap().is_empty()) {
+                return Err(Box::new(BuildError::NoHash(file.to_owned())));
+            }
             let hash = try!(self.sha_256(&file));
-            if !self.sha256.as_ref().unwrap().contains(&hash) {
+            if (self.sha256.as_ref().unwrap()[index] != hash) &&
+                (self.sha256.as_ref().unwrap()[index] != "SKIP") {
                 return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         }
@@ -313,6 +325,7 @@ impl Builder for PackageDesc {
 
     fn handle_source(&self) -> Result<(), Box<error::Error>> {
         if let Some(source) = self.source.as_ref() {
+            let mut index: usize = 0;
             for item in source {
                 let pos = item.find('+').unwrap_or(item.len());
                 let (cvs, url) = item.split_at(pos);
@@ -321,15 +334,28 @@ impl Builder for PackageDesc {
                     println!("{} {}", "Cloning".bold(), &url.bold());
                     try!(clone_repo(&url));
                 } else {
-                    try!(self.web_get(cvs));
-                    if let Some(file_name) = cvs.rsplit('/').nth(0) {
-                        try!(self.match_hash(file_name));
-                        try!(self.extract_tar(file_name));
-                    };
+                    if self.is_web_get(cvs) {
+                        try!(self.web_get(cvs));
+                        if let Some(file_name) = cvs.rsplit('/').nth(0) {
+                            try!(self.match_hash(index, file_name));
+                            try!(self.extract_tar(file_name));
+                        };
+                    } else {
+                        try!(self.match_hash(index, item));
+                    }
                 }
+                index += 1;
             }
         };
         Ok(())
+    }
+
+    fn is_web_get(&self, url: &str) -> bool {
+        if let Some(_) = url.find("://") {
+            return true
+        } else {
+            return false
+        }
     }
 
     fn web_get(&self, url: &str) -> Result<(), Box<error::Error>> {

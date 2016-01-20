@@ -25,6 +25,7 @@ pub enum BuildError {
     NoDesc(String),
     HttpNoFile(hyper::status::StatusCode, String),
     HashMismatch(String, String),
+    NoHash(String),
 }
 
 impl fmt::Display for BuildError {
@@ -46,6 +47,9 @@ impl fmt::Display for BuildError {
             BuildError::HashMismatch(ref file, ref hash) => {
                 write!(f, "hash mismatch: '{}' : '{}'", file, hash)
             }
+            BuildError::NoHash(ref file) => {
+                write!(f, "no hash for file '{}'", file)
+            }
         }
     }
 }
@@ -65,6 +69,7 @@ impl Error for BuildError {
             BuildError::NoDesc(..) => "no 'package' nor 'clean' section found in PKG.toml",
             BuildError::HttpNoFile(..) => "http file error",
             BuildError::HashMismatch(..) => "hash mismatch",
+            BuildError::NoHash(..) => "no hash for file",
         }
     }
 
@@ -82,6 +87,7 @@ impl Error for BuildError {
             BuildError::NoDesc(..) => None,
             BuildError::HttpNoFile(..) => None,
             BuildError::HashMismatch(..) => None,
+            BuildError::NoHash(..) => None,
         }
     }
 }
