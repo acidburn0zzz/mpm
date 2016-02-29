@@ -7,6 +7,7 @@ extern crate walkdir;
 extern crate git2;
 extern crate hyper;
 extern crate crypto;
+extern crate flate2;
 
 pub mod build;
 mod ext;

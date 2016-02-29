@@ -6,6 +6,7 @@ extern crate time;
 extern crate walkdir;
 extern crate hyper;
 extern crate crypto;
+extern crate flate2;
 
 use ext::{parse_toml_file, strip_parent, assert_toml};
 use error::BuildError;
@@ -32,6 +33,7 @@ use walkdir::WalkDir;
 use hyper::client::Client;
 use crypto::sha2;
 use crypto::digest::Digest;
+use flate2::read::GzDecoder;
 
 #[allow(non_camel_case_types)]
 #[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone)]
@@ -374,7 +376,14 @@ impl Builder for PackageDesc {
     }
 
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>> {
-        Ok(try!(Archive::new(try!(File::open(path))).unpack("src")))
+        if let Ok(decomp) = GzDecoder::new(try!(File::open(path))) {
+            let mut archive = Archive::new(decomp);
+            try!(archive.unpack("src"));
+        } else {
+            let mut archive = Archive::new(try!(File::open(path)));
+            try!(archive.unpack("src"));
+        };
+        Ok(())
     }
 
     fn build(&self) -> Result<(), Box<error::Error>> {
@@ -571,9 +580,8 @@ impl<T: Encodable + Decodable> Desc<T> for T {
     }
 
     fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
-        let shell = env!("SHELL");
         for line in script {
-            let mut command = try!(Command::new(shell)
+            let mut command = try!(Command::new("sh")
                                        .arg("-c")
                                        .arg(line)
                                        .spawn());
