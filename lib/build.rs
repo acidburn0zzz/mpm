@@ -235,7 +235,7 @@ impl Builder for PackageDesc {
     // 'touches' a tarball file using the string in 'name' as a file name
     fn create_tar_file(&self) -> Result<(File, String), Box<error::Error>> {
         let mut current_dir = try!(env::current_dir());
-        let mut tar_name = self.name.clone().unwrap_or(Default::default());
+        let mut tar_name = self.name.clone().unwrap_or("Unkown".to_owned());
         if let Some(arch) = self.arch.clone() {
             if let Some(pkg_vers) = self.vers.as_ref() {
                 if let Some(pkg_rel) = self.rel.as_ref() {
@@ -430,7 +430,7 @@ impl MTree {
 
     fn write(&self, path: &str) -> Result<(), BuildError> {
         print!("{}", "Generating MTREE...".bold());
-        try!(try!(File::create(path)).write_all(toml::encode(&self).as_str().unwrap_or("").as_bytes()));
+        try!(try!(File::create(path)).write_all(&format!("{}", toml::encode(&self)).as_bytes()));
         Ok(print!("{}\n", "OK".paint(Color::Green)))
     }
 
@@ -532,15 +532,15 @@ pub struct PkgInfo {
 impl PkgInfo {
     pub fn new(build_file: &PackageDesc) -> PkgInfo {
         let mut info: PkgInfo = Default::default();
-        info.name = build_file.name.clone().unwrap_or(Default::default());
-        info.vers = build_file.vers.clone().unwrap_or(Default::default());
-        info.builddate = build_file.builddate.clone().unwrap_or(Default::default());
-        info.url = build_file.url.clone().unwrap_or(Default::default());
+        info.name = build_file.name.clone().unwrap_or("Unknown".to_owned());
+        info.vers = build_file.vers.clone().unwrap_or("Unknown".to_owned());
+        info.builddate = build_file.builddate.clone().unwrap_or("Unkown".to_owned());
+        info.url = build_file.url.clone().unwrap_or("Uknown".to_owned());
         info.size = build_file.pkg_size().unwrap_or(0);
-        info.arch = build_file.arch.clone().unwrap_or(Default::default());;
-        info.license = build_file.license.clone().unwrap_or(Default::default());
-        info.conflicts = build_file.conflicts.clone().unwrap_or(Default::default());
-        info.provides = build_file.provides.clone().unwrap_or(Default::default());
+        info.arch = build_file.arch.clone().unwrap_or(vec![Default::default()]);;
+        info.license = build_file.license.clone().unwrap_or("Unkown".to_owned());
+        info.conflicts = build_file.conflicts.clone().unwrap_or(vec!["Unkown".to_owned()]);
+        info.provides = build_file.provides.clone().unwrap_or("Uknown".to_owned());
         return info;
     }
 
@@ -550,7 +550,7 @@ impl PkgInfo {
 
     pub fn write(&self, path: &str) -> Result<(), BuildError> {
         print!("{}", "Generating PKGINFO...".bold());
-        try!(try!(File::create(path)).write_all(toml::encode(&self).as_str().unwrap_or("").as_bytes()));
+        try!(try!(File::create(path)).write_all(&format!("{}", toml::encode(&self)).as_bytes()));
         Ok(print!("{}\n", "OK".paint(Color::Green)))
     }
 }
