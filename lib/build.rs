@@ -36,7 +36,7 @@ use crypto::digest::Digest;
 use flate2::read::GzDecoder;
 
 #[allow(non_camel_case_types)]
-#[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone)]
+#[derive(PartialEq,PartialOrd,Debug,RustcEncodable,RustcDecodable,Clone,Eq,Hash)]
 pub enum Arch {
     x86_64,
     i686,
@@ -123,7 +123,7 @@ impl CleanDesc {
 }
 
 // Structure for describing a package to be built
-#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Clone)]
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Clone,Eq,Hash)]
 pub struct PackageDesc {
     name: Option<String>,
     vers: Option<String>,
@@ -516,10 +516,11 @@ impl MTreeEntry {
 
 }
 
-#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq)]
+#[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Eq,Hash,Clone)]
 pub struct PkgInfo {
-    name: String,
+    pub name: String,
     vers: String,
+    desc: String,
     builddate: String,
     url: String,
     size: u64,
@@ -527,6 +528,8 @@ pub struct PkgInfo {
     license: String,
     conflicts: Vec<String>,
     provides: String,
+    deps: Vec<String>,
+    maintainers: Vec<String>,
 }
 
 impl PkgInfo {
@@ -534,6 +537,7 @@ impl PkgInfo {
         let mut info: PkgInfo = Default::default();
         info.name = build_file.name.clone().unwrap_or("Unknown".to_owned());
         info.vers = build_file.vers.clone().unwrap_or("Unknown".to_owned());
+        info.desc = build_file.desc.clone().unwrap_or("".to_owned());
         info.builddate = build_file.builddate.clone().unwrap_or("Unkown".to_owned());
         info.url = build_file.url.clone().unwrap_or("Uknown".to_owned());
         info.size = build_file.pkg_size().unwrap_or(0);
@@ -541,6 +545,8 @@ impl PkgInfo {
         info.license = build_file.license.clone().unwrap_or("Unkown".to_owned());
         info.conflicts = build_file.conflicts.clone().unwrap_or(vec!["Unkown".to_owned()]);
         info.provides = build_file.provides.clone().unwrap_or("Uknown".to_owned());
+        info.deps = build_file.deps.clone().unwrap_or(vec![Default::default()]);
+        info.maintainers = build_file.maintainers.clone().unwrap_or(vec!["Unknown".to_owned()]);
         return info;
     }
 
@@ -580,25 +586,20 @@ impl<T: Encodable + Decodable> Desc<T> for T {
     }
 
     fn exec(&self, script: &Vec<String>) -> Result<(), Box<error::Error>> {
-        for line in script {
-            let mut command = try!(Command::new("sh")
-                                       .arg("-c")
-                                       .arg(line)
-                                       .spawn());
-            let status = try!(command.wait());
-            if let Some(child_output) = command.stdout.as_mut() {
-                // Child process has output
-                let mut buff = String::new();
-                println!("{}", try!(child_output.read_to_string(&mut buff)));
-            };
-            if let Some(code) = status.code() {
-                if code != 0 {
-                    println!("'{}' terminated with code '{}'",
-                             line.bold(),
-                             code.to_string().bold());
-                }
-            };
+        let mut script_clone = script.clone();
+        for mut line in &mut script_clone {
+            line.push_str(";");
         }
+        let mut command = try!(Command::new("sh")
+                               .arg("-c")
+                               .arg(script_clone.join(" "))
+                               .spawn());
+        try!(command.wait());
+        if let Some(child_output) = command.stdout.as_mut() {
+            // Child process has output
+            let mut buff = String::new();
+            println!("{}", try!(child_output.read_to_string(&mut buff)));
+        };
         Ok(())
     }
 
