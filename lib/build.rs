@@ -210,22 +210,22 @@ impl Builder for PackageDesc {
     fn match_hash(&self, index: usize, file: &str) -> Result<(), Box<error::Error>> {
         if self.sha512.is_some() {
             if (index >= self.sha512.as_ref().unwrap().len()) ||
-                (self.sha512.as_ref().unwrap()[index].is_empty()) {
+               (self.sha512.as_ref().unwrap()[index].is_empty()) {
                 return Err(Box::new(BuildError::NoHash(file.to_owned())));
             }
             let hash = try!(self.sha_512(&file));
             if (self.sha512.as_ref().unwrap()[index] != hash) &&
-                (self.sha512.as_ref().unwrap()[index] != "SKIP") {
+               (self.sha512.as_ref().unwrap()[index] != "SKIP") {
                 return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         } else if self.sha256.is_some() {
             if (index >= self.sha256.as_ref().unwrap().len()) ||
-                (self.sha256.as_ref().unwrap().is_empty()) {
+               (self.sha256.as_ref().unwrap().is_empty()) {
                 return Err(Box::new(BuildError::NoHash(file.to_owned())));
             }
             let hash = try!(self.sha_256(&file));
             if (self.sha256.as_ref().unwrap()[index] != hash) &&
-                (self.sha256.as_ref().unwrap()[index] != "SKIP") {
+               (self.sha256.as_ref().unwrap()[index] != "SKIP") {
                 return Err(Box::new(BuildError::HashMismatch(file.to_owned(), hash)));
             }
         }
@@ -354,9 +354,9 @@ impl Builder for PackageDesc {
 
     fn is_web_get(&self, url: &str) -> bool {
         if let Some(_) = url.find("://") {
-            return true
+            return true;
         } else {
-            return false
+            return false;
         }
     }
 
@@ -509,11 +509,10 @@ impl MTreeEntry {
     }
 
     fn prepend_path(&self, path: &str) -> String {
-        let mut prepend: PathBuf =  PathBuf::from("./");
+        let mut prepend: PathBuf = PathBuf::from("./");
         prepend.push(path);
         prepend.as_string()
     }
-
 }
 
 #[derive(RustcDecodable,RustcEncodable,Debug,Default,PartialEq,Eq,Hash,Clone)]
@@ -591,9 +590,9 @@ impl<T: Encodable + Decodable> Desc<T> for T {
             line.push_str(";");
         }
         let mut command = try!(Command::new("sh")
-                               .arg("-c")
-                               .arg(script_clone.join(" "))
-                               .spawn());
+                                   .arg("-c")
+                                   .arg(script_clone.join(" "))
+                                   .spawn());
         try!(command.wait());
         if let Some(child_output) = command.stdout.as_mut() {
             // Child process has output
