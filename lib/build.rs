@@ -26,7 +26,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use rpf::*;
 use time::*;
-use tar::Archive;
+use tar::{Archive, Builder};
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use rustc_serialize::json;
 use walkdir::WalkDir;
@@ -161,7 +161,7 @@ impl PackageDesc {
 }
 
 // Trait for performing a build
-pub trait Builder {
+pub trait Build {
     // Creates a package from tar file
     fn create_pkg(&mut self) -> Result<(), Box<error::Error>>;
     fn extract_tar(&self, path: &str) -> Result<(), Box<error::Error>>;
@@ -190,7 +190,7 @@ pub trait Builder {
     fn match_hash(&self, index: usize, file: &str) -> Result<(), Box<error::Error>>;
 }
 
-impl Builder for PackageDesc {
+impl Build for PackageDesc {
     fn sha_512(&self, file: &str) -> Result<String, Box<error::Error>> {
         let mut hasher = sha2::Sha512::new();
         let mut buffer = Vec::new();
@@ -268,7 +268,7 @@ impl Builder for PackageDesc {
         try!(PkgInfo::new(&self).write("pkg/PKGINFO"));
         try!(try!(MTree::from_dir("pkg")).write("pkg/MTREE"));
         let tar = try!(self.create_tar_file());
-        let archive = Archive::new(tar.0);
+        let mut archive = Builder::new(tar.0);
         print!("{}", "Compressing package..".bold());
         for entry in WalkDir::new("pkg") {
             let entry = try!(entry);
