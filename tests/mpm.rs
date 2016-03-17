@@ -14,7 +14,7 @@ fn test_mpm_help() {
     let prog = Command::new(mpm_path())
                         .arg("--help")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&prog.stdout));
     assert_eq!(prog.status.success(), true);
 }
@@ -28,7 +28,7 @@ fn test_mpm_build_clean_tar() {
                         .arg("PKG.toml")
                         .current_dir("example/tar")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&build.stdout));
 
     let clean = Command::new(&mpm_path)
@@ -36,7 +36,7 @@ fn test_mpm_build_clean_tar() {
                         .arg("PKG.toml")
                         .current_dir("example/tar")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&clean.stdout));
 
     assert_eq!(build.status.success(), true);
@@ -52,7 +52,7 @@ fn test_mpm_build_clean_git() {
                         .arg("PKG.toml")
                         .current_dir("example/git")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&build.stdout));
 
     let clean = Command::new(&mpm_path)
@@ -60,7 +60,7 @@ fn test_mpm_build_clean_git() {
                         .arg("PKG.toml")
                         .current_dir("example/git")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&clean.stdout));
 
     assert_eq!(build.status.success(), true);
@@ -76,7 +76,7 @@ fn test_mpm_build_clean_self() {
                         .arg("PKG.toml")
                         .current_dir("example/mpm-git")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&build.stdout));
 
     let clean = Command::new(&mpm_path)
@@ -84,7 +84,7 @@ fn test_mpm_build_clean_self() {
                         .arg("PKG.toml")
                         .current_dir("example/mpm-git")
                         .output()
-                        .unwrap_or_else(|e| { panic!("Failed to run test for rm: {}", e) });
+                        .unwrap_or_else(|e| { panic!("Failed to run test for mpm: {}", e) });
     println!("{}", String::from_utf8_lossy(&clean.stdout));
 
     assert_eq!(build.status.success(), true);
