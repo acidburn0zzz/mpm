@@ -1,0 +1,34 @@
+[package]
+maintainers = [ "Alberto Corona <ac@albertocorona.com>" ]
+desc = "A smart and user friendly shell intended mostly for interactive use."
+name = "fish"
+vers = "2.2.0"
+rel = "1"
+arch = [""]
+url = "https://github.com/fish-shell/fish-shell"
+license = "BSD"
+makedeps = ["doxygen"]
+deps = [ "bc"]
+provides = "fish"
+conflicts = ["fish-git"]
+source = ["https://github.com/fish-shell/fish-shell/releases/download/2.2.0/fish-2.2.0.tar.gz"]
+sha256 = ["a76339fd14ce2ec229283c53e805faac48c3e99d9e3ede9d82c0554acfc7b77a"]
+build = [
+	'cd $src_dir/fish-2.2.0',
+	'echo $pkg_vers > version',
+	'autoconf -i',
+	'./configure --prefix=/usr --sysconfdir=/etc',
+	'make -j$(nproc)',
+]
+package = [
+	'cd $src_dir/fish-2.2.0',
+	'make DESTDIR=$pkg_dir install',
+]
+
+[clean]
+script = [
+	'rm -v fish-$pkg_vers.tar.gz',
+	'rm -v fish-$pkg_vers-$pkg_rel-x86_64.pkg.tar',
+	'rm -r src',
+	'rm -rv pkg',
+]
