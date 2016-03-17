@@ -1,11 +1,11 @@
-extern crate util;
+extern crate libpm;
 extern crate rpf;
 extern crate pgetopts;
 
 use std::env;
 use rpf::*;
 use pgetopts::Options;
-use util::build::*;
+use libpm::build::*;
 
 pub static MPM: Prog = Prog {
     name: "mpm",

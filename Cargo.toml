@@ -4,21 +4,11 @@ version = "0.1.0"
 authors = ["Alberto Corona <ac@albertocorona.com>"]
 
 [dependencies]
-toml = "0.1"
-rustc-serialize = "0.3"
 rpf = "0.1"
 pgetopts = "0.1"
-tar = "0.4"
-time = "0.1"
-walkdir = "0.1"
-git2 = "0.3"
-rust-crypto = "0.2"
-hyper = "0.7"
-flate2 = "0.2"
 
-[lib]
-name = "util"
-path = "lib/lib.rs"
+[dependencies.libpm]
+git = "https://gitlab.com/0X1A/libpm.git"
 
 [[bin]]
 name = "mpm"
