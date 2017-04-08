@@ -6,9 +6,12 @@ authors = ["Alberto Corona <ac@albertocorona.com>"]
 [dependencies]
 rpf = "0.1"
 pgetopts = "0.1"
+clap = { version = "2", features = ["yaml"] }
+log = "*"
+ansi_term = "*"
 
 [dependencies.libpm]
-git = "https://gitlab.com/0X1A/libpm.git"
+git = "https://github.com/0X1A/libpm"
 
 [[bin]]
 name = "mpm"

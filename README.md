@@ -9,9 +9,7 @@ mostly and primarily a side project, for fun.
 [**Get `cargo/rustc`**](https://www.rust-lang.org/downloads.html)
 
 ## Contributing
-To file issues and pull requests please do so on the GitLab page for this
-project at: [https://gitlab.com/0X1A/mpm](https://gitlab.com/0X1A/mpm). All commits 
-are run through rustfmt before committing with no options passed.
+Please feel free to open a PR or issue. All commits are run through rustfmt before committing with no options passed.
 
 Get [`rust-fmt`](https://github.com/rust-lang-nursery/rustfmt)
 

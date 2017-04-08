@@ -1,0 +1,11 @@
+name: mpm
+version: 0.1.0
+author: Alberto Corona <ac@albertocorona.com>
+about: A package manager
+subcommands:
+        - build:
+                about: Build a new package
+                args:
+                        - clean:
+                                help: Cleans the current package environment
+                                takes_value: false

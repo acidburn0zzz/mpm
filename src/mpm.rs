@@ -1,99 +1,93 @@
+#[macro_use]
+extern crate clap;
+#[macro_use]
+extern crate log;
 extern crate libpm;
 extern crate rpf;
 extern crate pgetopts;
+extern crate ansi_term;
 
-use std::env;
-use rpf::*;
-use pgetopts::Options;
+use std::process::exit;
+use clap::App;
 use libpm::build::*;
+use log::{LogRecord, LogLevel, LogMetadata, LogLevelFilter};
+use ansi_term::Colour;
 
-pub static MPM: Prog = Prog {
-    name: "mpm",
-    vers: "0.1.0",
-    yr: "2015",
-};
+pub struct Logger;
 
-fn print_usage(opts: Options) {
-    print!("{0}: {1} {2} {3}",
-           "Usage".bold(),
-           MPM.name.bold(),
-           "[OPTION]".underline(),
-           "BUILD FILE".underline());
-    println!("{}", opts.options());
+impl Logger {
+    pub fn init() -> Result<(), libpm::error::PkgError> {
+        Ok(log::set_logger(|max_log_level| {
+                               max_log_level.set(LogLevelFilter::Info);
+                               Box::new(Logger)
+                           })?)
+    }
+}
+
+impl log::Log for Logger {
+    fn enabled(&self, metadata: &LogMetadata) -> bool {
+        metadata.level() <= LogLevel::Info
+    }
+
+    fn log(&self, record: &LogRecord) {
+        if self.enabled(record.metadata()) {
+            match record.level() {
+                LogLevel::Error => {
+                    println!("{}: {}", Colour::Red.bold().paint("error"), record.args());
+                }
+                LogLevel::Warn => {}
+                LogLevel::Info => {
+                    println!("{}: {}", Colour::Green.bold().paint("yabs"), record.args());
+                }
+                LogLevel::Debug => {}
+                LogLevel::Trace => {}
+            };
+        }
+    }
+}
+
+fn run() -> i32 {
+    let yaml = load_yaml!("cli.yaml");
+    let matches = App::from_yaml(yaml).get_matches();
+    if let Some(matches) = matches.subcommand_matches("build") {
+        match PackageBuild::from_file("PKG.toml") {
+            Ok(pkg_build) => {
+                if let Some(mut package) = pkg_build.clone().package() {
+                    if matches.is_present("clean") {
+                        if let Err(err) = package.set_env() {
+                            error!("{}", err.to_string());
+                            return -1;
+                        }
+                        if let Some(clean) = pkg_build.clean() {
+                            if let Err(err) = clean.clean() {
+                                error!("{}", err.to_string());
+                                return -1;
+                            }
+                        }
+                        return 0;
+                    } else {
+                        if let Err(err) = package.create_pkg() {
+                            error!("{}", err.to_string());
+                            return -1;
+                        }
+                        return 0;
+                    }
+                }
+            }
+            Err(err) => {
+                for error in err {
+                    error!("{}", error.to_string());
+                }
+                return -1;
+            }
+        }
+    }
+    return 0;
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut opts = Options::new();
-
-    opts.optflag("p", "print", "Print package file in JSON");
-    opts.optflag("b", "build", "Build package");
-    opts.optflag("c", "clean", "Clean build environment");
-    opts.optflag("h", "help", "Print help information");
-
-    let matches = match opts.parse(&args[1..]) {
-        Ok(m) => m,
-        Err(e) => {
-            MPM.error(e.to_string(), ExitStatus::OptError);
-            panic!();
-        }
-    };
-
-    if matches.opt_present("h") {
-        print_usage(opts);
-    } else if matches.opt_present("p") {
-        for item in matches.free {
-            match PackageBuild::from_file(&*item) {
-                Ok(pkg) => pkg.print_json(),
-                Err(e) => {
-                    for error in e {
-                        println!("{}", error.to_string().paint(Color::Red));
-                    }
-                    MPM.exit(ExitStatus::Error);
-                    panic!();
-                }
-            };
-        }
-    } else if matches.opt_present("b") {
-        for item in matches.free {
-            match PackageBuild::from_file(&*item) {
-                Ok(pkg_build) => {
-                    if let Some(mut package) = pkg_build.package() {
-                        if let Err(e) = package.create_pkg() {
-                            MPM.error(e.to_string(), ExitStatus::Error);
-                        };
-                    };
-                }
-                Err(e) => {
-                    for error in e {
-                        println!("{}", error.to_string().paint(Color::Red));
-                    }
-                    MPM.exit(ExitStatus::Error);
-                    panic!();
-                }
-            };
-        }
-    } else if matches.opt_present("c") {
-        for item in matches.free {
-            match PackageBuild::from_file(&*item) {
-                Ok(pkg_build) => {
-                    if let Some(package) = pkg_build.clone().package() {
-                        package.set_env().unwrap();
-                    };
-                    if let Some(clean) = pkg_build.clone().clean() {
-                        if let Err(e) = clean.clean() {
-                            MPM.error(e.to_string(), ExitStatus::Error);
-                        };
-                    };
-                }
-                Err(e) => {
-                    for error in e {
-                        println!("{}", error.to_string().paint(Color::Red));
-                    }
-                    MPM.exit(ExitStatus::Error);
-                    panic!();
-                }
-            };
-        }
+    match run() {
+        error @ 1...10 => exit(error),
+        _ => (),
     }
 }
