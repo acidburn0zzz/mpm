@@ -75,9 +75,7 @@ fn run() -> i32 {
                 }
             }
             Err(err) => {
-                for error in err {
-                    error!("{}", error.to_string());
-                }
+                error!("{}", err.to_string());
                 return -1;
             }
         }
